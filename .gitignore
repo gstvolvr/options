@@ -1,0 +1,14 @@
+# things to ignore
+.DS_Store
+venv
+data
+graph
+tokens
+*.out
+logs
+*ipyn*
+images
+__py*
+config.ini
+conf/env.sh
+.ignore
