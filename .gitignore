@@ -12,3 +12,5 @@ __py*
 config.ini
 conf/env.sh
 .ignore
+*pickle*
+*.csv
