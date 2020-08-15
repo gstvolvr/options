@@ -41,9 +41,9 @@ def get_returns(d_options, d_prices, d_dividends):
     return d_merged
 
 def _clean(value):
-    if value is not None and value == '':
+    if value == '':
         return None
-    return None
+    return value
 
 def find_dividend(d_dividends, months=3):
     for col in d_dividends.columns:
