@@ -116,7 +116,6 @@ def get_eod_prices(iex, tickers):
             print(i, end=' ')
         quote = iex.get_quote(ticker)
         if quote is None:
-            print(f'check {ticker}: quote is empty')
             logging.info(f'check {ticker}: quote is empty')
             continue
         if quote['latestSource'] == 'Close':
