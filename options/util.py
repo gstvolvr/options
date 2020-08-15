@@ -40,6 +40,11 @@ def get_returns(d_options, d_prices, d_dividends):
         d_merged[f'return_after_{i+1}_div'] = d_merged.apply(partial(days_to_next_event, i=i), axis=1)
     return d_merged
 
+def _clean(value):
+    if value is not None and value == '':
+        return None
+    return None
+
 def find_dividend(d_dividends, months=3):
     for col in d_dividends.columns:
         if 'date' in col.lower():
@@ -47,11 +52,11 @@ def find_dividend(d_dividends, months=3):
     next_fields = [c for c in d_dividends.columns if c.startswith('next')]
     last_fields = [c for c in d_dividends.columns if c.startswith('last')]
 
-    d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].combine_first(d_dividends['last_dividend_amount'])
+    d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].apply(_clean).combine_first(d_dividends['last_dividend_amount'])
     d_dividends = d_dividends[d_dividends['dividend_amount'].notna() & (d_dividends['dividend_amount'] != '')]
     d_dividends['dividend_amount'] = d_dividends['dividend_amount'].astype(np.float)
-    d_dividends['dividend_frequency'] = d_dividends['next_dividend_frequency'].combine_first(d_dividends['last_dividend_frequency'])
-    d_dividends['dividend_ex_date'] = d_dividends['next_dividend_ex_date'].combine_first(d_dividends['last_dividend_ex_date'] + pd.DateOffset(months=months))
+    d_dividends['dividend_frequency'] = d_dividends['next_dividend_frequency'].apply(_clean).combine_first(d_dividends['last_dividend_frequency'])
+    d_dividends['dividend_ex_date'] = d_dividends['next_dividend_ex_date'].apply(_clean).combine_first(d_dividends['last_dividend_ex_date'] + pd.DateOffset(months=months))
 
     return d_dividends
 
@@ -111,21 +116,23 @@ def get_eod_prices(iex, tickers):
             print(i, end=' ')
         quote = iex.get_quote(ticker)
         if quote is None:
-            print(f'check {ticker}')
-            logging.info(f'check {ticker}')
+            print(f'check {ticker}: quote is empty')
+            logging.info(f'check {ticker}: quote is empty')
             continue
         if quote['latestSource'] == 'Close':
             if quote['closeTime'] is None:
-                print(f'check {ticker}')
-                logging.info(f'check {ticker}')
-                continue
-            date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
+                latest_price = quote['latestPrice']
+                date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
+                logging.info(f'{ticker}: using latest source')
+            else:
+                latest_price = quote['close']
+                date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
             previous_date = date - datetime.timedelta(days=1)
             price = quote['close']
             prices.append({
                 'symbol': ticker,
                 'comany_name': quote['companyName'],
-                'latest_stock_price': quote['close'],
+                'latest_stock_price': latest_price,
                 'latest_date': date.strftime('%Y-%m-%d'),
                 'previous_stock_price': quote['previousClose'],
                 'previous_date': previous_date.strftime('%Y-%m-%d')})
