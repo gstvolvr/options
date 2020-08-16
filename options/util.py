@@ -16,8 +16,8 @@ def get_returns(d_options, d_prices, d_dividends):
     d_options['expiration_date'] = pd.to_datetime(d_options['expiration_date'], format='%Y%m%d')
 
     d_dividends = find_dividend(d_dividends, months=3)
-    d_merged = d_options.merge(d_prices, left_on=['symbol', 'last_updated'], right_on=['symbol', 'previous_date'], how='left') \
-                        .merge(d_dividends, on='symbol', how='left')
+    d_merged = d_options.merge(d_prices, left_on=['symbol', 'last_updated'], right_on=['symbol', 'previous_date'], how='inner') \
+                        .merge(d_dividends, on='symbol', how='inner')
     d_merged['stock_price'] = d_merged['previous_stock_price']
     d_merged['stock_date'] = d_merged['previous_date']
 
@@ -40,6 +40,11 @@ def get_returns(d_options, d_prices, d_dividends):
         d_merged[f'return_after_{i+1}_div'] = d_merged.apply(partial(days_to_next_event, i=i), axis=1)
     return d_merged
 
+def _clean(value):
+    if value == '':
+        return None
+    return value
+
 def find_dividend(d_dividends, months=3):
     for col in d_dividends.columns:
         if 'date' in col.lower():
@@ -47,9 +52,11 @@ def find_dividend(d_dividends, months=3):
     next_fields = [c for c in d_dividends.columns if c.startswith('next')]
     last_fields = [c for c in d_dividends.columns if c.startswith('last')]
 
-    d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].combine_first(d_dividends['last_dividend_amount']).astype(np.float)
-    d_dividends['dividend_frequency'] = d_dividends['next_dividend_frequency'].combine_first(d_dividends['last_dividend_frequency'])
-    d_dividends['dividend_ex_date'] = d_dividends['next_dividend_ex_date'].combine_first(d_dividends['last_dividend_ex_date'] + pd.DateOffset(months=months))
+    d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].apply(_clean).combine_first(d_dividends['last_dividend_amount'])
+    d_dividends = d_dividends[d_dividends['dividend_amount'].notna() & (d_dividends['dividend_amount'] != '')]
+    d_dividends['dividend_amount'] = d_dividends['dividend_amount'].astype(np.float)
+    d_dividends['dividend_frequency'] = d_dividends['next_dividend_frequency'].apply(_clean).combine_first(d_dividends['last_dividend_frequency'])
+    d_dividends['dividend_ex_date'] = d_dividends['next_dividend_ex_date'].apply(_clean).combine_first(d_dividends['last_dividend_ex_date'] + pd.DateOffset(months=months))
 
     return d_dividends
 
@@ -86,11 +93,14 @@ def get_dividends(iex, tickers):
     rows = []
     for ticker in tickers:
         row = {'symbol': ticker}
-        next_dividend = iex.get_next_dividend(ticker)
-        next_dividend_clean = {f'next_dividend_{to_snake(k)}': v for k, v in next_dividend.items()}
-
         last_dividend = iex.get_last_dividend(ticker)
         last_dividend_clean = {f'last_dividend_{to_snake(k)}': v for k, v in last_dividend.items()}
+
+        next_dividend = iex.get_next_dividend(ticker)
+        if next_dividend == {}:
+            next_dividend_clean = {f'next_dividend_{to_snake(k)}': None for k in last_dividend}
+        else:
+            next_dividend_clean = {f'next_dividend_{to_snake(k)}': v for k, v in next_dividend.items()}
 
         row.update(next_dividend_clean)
         row.update(last_dividend_clean)
@@ -105,14 +115,23 @@ def get_eod_prices(iex, tickers):
         if (i != 0) and (i % 100) == 0:
             print(i, end=' ')
         quote = iex.get_quote(ticker)
+        if quote is None:
+            logging.info(f'check {ticker}: quote is empty')
+            continue
         if quote['latestSource'] == 'Close':
-            date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
+            if quote['closeTime'] is None:
+                latest_price = quote['latestPrice']
+                date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
+                logging.info(f'{ticker}: using latest source')
+            else:
+                latest_price = quote['close']
+                date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
             previous_date = date - datetime.timedelta(days=1)
             price = quote['close']
             prices.append({
                 'symbol': ticker,
                 'comany_name': quote['companyName'],
-                'latest_stock_price': quote['close'],
+                'latest_stock_price': latest_price,
                 'latest_date': date.strftime('%Y-%m-%d'),
                 'previous_stock_price': quote['previousClose'],
                 'previous_date': previous_date.strftime('%Y-%m-%d')})
@@ -142,3 +161,10 @@ def get_eod_options(iex, tickers):
                     data.append(instance_snake)
     return pd.DataFrame(data)
 
+def get_industries(iex, tickers):
+    industries = []
+    for i, ticker in enumerate(tickers):
+        if (i != 0) and (i % 100) == 0:
+            print(i, end=' ')
+        industries.append({'symbol': ticker, 'industry': iex.get_industry(ticker)})
+    return pd.DataFrame(industries)
