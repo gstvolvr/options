@@ -16,7 +16,6 @@ def to_snake(name):
 
 
 def update_dividends(conn, iex):
-
     sql = """
     SELECT symbol 
     FROM universe.symbols 
@@ -35,7 +34,8 @@ def update_dividends(conn, iex):
         currency,
         description,
         frequency,
-        calculated
+        calculated,
+        gross_annual_yield
     ) VALUES (
         %(symbol)s,
         %(ex_date)s,
@@ -46,7 +46,8 @@ def update_dividends(conn, iex):
         %(currency)s,
         %(description)s,
         %(frequency)s,
-        %(calculated)s
+        %(calculated)s,
+        %(gross_annual_yield)s
     )
     ON CONFLICT(symbol)
     DO UPDATE SET
@@ -58,7 +59,8 @@ def update_dividends(conn, iex):
         currency = EXCLUDED.currency,
         description = EXCLUDED.description,
         frequency = EXCLUDED.frequency,
-        calculated = EXCLUDED.calculated
+        calculated = EXCLUDED.calculated,
+        gross_annual_yield = EXCLUDED.gross_annual_yield
     """
 
     def _clean(value):
@@ -70,12 +72,11 @@ def update_dividends(conn, iex):
         new_date = datetime.datetime.strptime(date, '%Y-%m-%d') + relativedelta(months=months)
         return datetime.datetime.strftime(new_date, '%Y-%m-%d')
 
-
     with conn.cursor() as update_cursor:
         with conn.cursor() as cursor:
             cursor.execute(sql)
 
-            for i, (symbol, ) in enumerate(cursor.fetchall()):
+            for i, (symbol,) in enumerate(cursor.fetchall()):
                 if (i != 0) and (i % 100) == 0:
                     logging.info(f'processed: {i}')
 
@@ -90,7 +91,10 @@ def update_dividends(conn, iex):
                         continue
                     dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
 
+                # TODO: update dividends
                 dividend_clean = {to_snake(k): _clean(v) for k, v in dividend.items()}
+                dividend_clean['gross_annual_yield'] = dividend_clean['amount'] * \
+                                                       (util.FREQUENCY_MAPPING[dividend['frequency']] / 12.)
 
                 # ignore non-cash dividends
                 if dividend['flag'] != 'Cash':
@@ -98,6 +102,7 @@ def update_dividends(conn, iex):
 
                 params.update(dividend_clean)
                 update_cursor.execute(update_sql, params)
+
 
 if __name__ == '__main__':
     iex = options.iex.IEX()
