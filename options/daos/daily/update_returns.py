@@ -11,7 +11,7 @@ root.setLevel(logging.INFO)
 
 def update_returns(conn, iex):
     sql = """
-    SELECT 
+    SELECT
         o.id,
         o.symbol,
         o.strike_price,
@@ -29,8 +29,8 @@ def update_returns(conn, iex):
     on o.symbol = p.symbol AND o.last_updated = p.previous_date
     INNER JOIN universe.dividends d
     on o.symbol = d.symbol
-    WHERE 
-        o.ask != 0 AND 
+    WHERE
+        o.ask != 0 AND
         o.is_adjusted = FALSE AND
         d.frequency IS NOT NULL AND
         d.frequency NOT IN ('final', 'unspecified')
@@ -40,8 +40,8 @@ def update_returns(conn, iex):
     update_sql = """
     INSERT INTO universe.returns(
           symbol,
-          id, 
-          net, 
+          id,
+          net,
           premium,
           insurance,
           return_after_1_div,
@@ -50,7 +50,7 @@ def update_returns(conn, iex):
     ) VALUES (
         %(symbol)s,
         %(id)s,
-        %(net)s, 
+        %(net)s,
         %(premium)s,
         %(insurance)s,
         %(return_after_1_div)s,
@@ -59,8 +59,8 @@ def update_returns(conn, iex):
     ) ON CONFLICT(id)
     DO UPDATE SET
         symbol = EXCLUDED.symbol,
-        id = EXCLUDED.id, 
-        net = EXCLUDED.net, 
+        id = EXCLUDED.id,
+        net = EXCLUDED.net,
         premium = EXCLUDED.premium,
         insurance  = EXCLUDED.insurance,
         return_after_1_div = EXCLUDED.return_after_1_div,
