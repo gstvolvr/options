@@ -69,6 +69,7 @@ CREATE TABLE universe.dividends(
   description VARCHAR(100),
   frequency VARCHAR(20),
   calculated BOOLEAN,
+  gross_annual_yield BOOLEAN,
   db_updated TIMESTAMP DEFAULT NOW()
 );
 
