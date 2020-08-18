@@ -57,8 +57,9 @@ CREATE TABLE universe.returns(
   db_updated TIMESTAMP DEFAULT NOW()
 );
 
+
 CREATE TABLE universe.dividends(
-  symbol VARCHAR(5) REFERENCES universe.companies(symbol) PRIMARY KEY,
+  symbol VARCHAR(6) REFERENCES universe.companies(symbol) PRIMARY KEY,
   ex_date DATE,
   payment_date DATE,
   record_date DATE,
@@ -70,3 +71,4 @@ CREATE TABLE universe.dividends(
   calculated BOOLEAN,
   db_updated TIMESTAMP DEFAULT NOW()
 );
+
