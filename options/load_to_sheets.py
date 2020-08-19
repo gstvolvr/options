@@ -63,7 +63,7 @@ def main(conn):
         ON o.symbol = p.symbol AND o.last_updated = p.previous_date
         LEFT JOIN universe.dividends d
         ON r.symbol = d.symbol
-        WHERE r.return_after_1_div IS NOT NULL and p.previous_stock_price IS NULL
+        WHERE r.return_after_1_div IS NOT NULL and p.previous_stock_price IS NOT NULL
         ORDER BY r.symbol, o.expiration_date, o.strike_price;
     """
 
