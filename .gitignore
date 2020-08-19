@@ -14,3 +14,4 @@ conf/env.sh
 .ignore
 *pickle*
 *.csv
+.idea
