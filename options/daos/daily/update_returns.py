@@ -9,7 +9,7 @@ root = logging.getLogger()
 root.setLevel(logging.INFO)
 
 
-def update_returns(conn, iex):
+def update_returns(conn):
     sql = """
     SELECT
         o.id,
@@ -41,38 +41,45 @@ def update_returns(conn, iex):
     INSERT INTO universe.returns(
           symbol,
           id,
+          mid,
           net,
           premium,
           insurance,
           return_after_1_div,
           return_after_2_div,
-          return_after_3_div
+          return_after_3_div,
+          db_updated
     ) VALUES (
         %(symbol)s,
         %(id)s,
+        %(mid)s,
         %(net)s,
         %(premium)s,
         %(insurance)s,
         %(return_after_1_div)s,
         %(return_after_2_div)s,
-        %(return_after_3_div)s
+        %(return_after_3_div)s,
+        NOW()
     ) ON CONFLICT(id)
     DO UPDATE SET
         symbol = EXCLUDED.symbol,
         id = EXCLUDED.id,
+        mid = EXCLUDED.mid,
         net = EXCLUDED.net,
         premium = EXCLUDED.premium,
         insurance  = EXCLUDED.insurance,
         return_after_1_div = EXCLUDED.return_after_1_div,
         return_after_2_div = EXCLUDED.return_after_2_div,
-        return_after_3_div = EXCLUDED.return_after_3_div
+        return_after_3_div = EXCLUDED.return_after_3_div,
+        db_updated = NOW()
     """
 
     with conn.cursor() as update_cursor:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+            cursor.execute('TRUNCATE universe.returns;')
             cursor.execute(sql)
 
-            for i, (row) in enumerate(cursor.fetchall()[:50]):
+            for i, (row) in enumerate(cursor.fetchall()):
                 row = dict(row)
                 if (i != 0) and (i % 100) == 0:
                     logging.info(f'processed: {i}')
@@ -92,13 +99,9 @@ def update_returns(conn, iex):
 
 
 if __name__ == '__main__':
-    iex = options.iex.IEX()
-    iex.token = os.getenv('IEX_TOKEN')
-
     with psycopg2.connect(dbname=os.getenv('DB_NAME'),
                           user=os.getenv('DB_USER'),
                           password=os.getenv('DB_PASS'),
                           host=os.getenv('DB_HOST'),
                           port=os.getenv('DB_PORT')) as conn:
-        update_returns(conn, iex)
-
+        update_returns(conn)

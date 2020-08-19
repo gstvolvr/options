@@ -68,6 +68,7 @@ def update_eod_options(conn, iex):
 
     with conn.cursor() as update_cursor:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+            cursor.execute('TRUNCATE universe.eod_call_options CASCADE;')
             cursor.execute(sql)
 
             for i, (row) in enumerate(cursor.fetchall()):

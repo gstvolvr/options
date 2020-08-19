@@ -86,19 +86,19 @@ def update_dividends(conn, iex):
                 if dividend == {}:
                     params['calculated'] = True
                     dividend = iex.get_last_dividend(symbol)
-                    if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
-                        logging.warning(f'{symbol}: {dividend}')
-                        continue
-                    dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
+
+                if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                    continue
+                dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
 
                 # TODO: update dividends
                 dividend_clean = {to_snake(k): _clean(v) for k, v in dividend.items()}
-                dividend_clean['gross_annual_yield'] = dividend_clean['amount'] * \
-                                                       (util.FREQUENCY_MAPPING[dividend['frequency']] / 12.)
-
                 # ignore non-cash dividends
-                if dividend['flag'] != 'Cash':
+                if dividend_clean['flag'] != 'Cash' or dividend_clean['amount'] is None:
                     continue
+
+                dividend_clean['gross_annual_yield'] = float(dividend_clean['amount']) * \
+                                                       (12. / util.FREQUENCY_MAPPING[dividend['frequency']])
 
                 params.update(dividend_clean)
                 update_cursor.execute(update_sql, params)

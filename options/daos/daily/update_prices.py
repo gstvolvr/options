@@ -14,18 +14,19 @@ def update_eod_prices(conn, iex):
     SELECT symbol 
     FROM universe.symbols 
     WHERE in_universe = TRUE
-    ORDER BY symbol
+    ORDER BY symbol;
     """
 
     update_sql = """
     INSERT INTO universe.eod_prices(
-        symbol, latest_stock_price, latest_date, previous_stock_price, previous_date
+        symbol, latest_stock_price, latest_date, previous_stock_price, previous_date, db_updated
     ) VALUES (
         %(symbol)s,
         %(latest_stock_price)s,
         %(latest_date)s,
         %(previous_stock_price)s,
-        %(previous_date)s
+        %(previous_date)s,
+        NOW()
     )
     ON CONFLICT(symbol)
     DO UPDATE SET
@@ -33,11 +34,13 @@ def update_eod_prices(conn, iex):
         latest_stock_price = EXCLUDED.latest_stock_price,
         latest_date = EXCLUDED.latest_date,
         previous_stock_price = EXCLUDED.previous_stock_price,
-        previous_date = EXCLUDED.previous_date
+        previous_date = EXCLUDED.previous_date,
+        db_updated = NOW()
     """
 
     with conn.cursor() as update_cursor:
         with conn.cursor() as cursor:
+            cursor.execute('TRUNCATE universe.eod_prices;')
             cursor.execute(sql)
 
             for i, (symbol,) in enumerate(cursor.fetchall()):
