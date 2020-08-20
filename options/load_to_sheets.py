@@ -71,23 +71,7 @@ def main(conn):
         cursor.execute(sql)
         values = cursor.fetchall()
 
-    creds = None
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
-            #creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        #with open('token.pickle', 'wb') as token:
-        #    pickle.dump(creds, token)
+    creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
 
     RANGE_NAME= 'data'
 
@@ -99,8 +83,6 @@ def main(conn):
 
 
 if __name__ == '__main__':
-    print(os.getenv('DB_NAME'))
-    print(os.getenv('DB_USER'))
     with psycopg2.connect(dbname=os.getenv('DB_NAME'),
                           user=os.getenv('DB_USER'),
                           password=os.getenv('DB_PASS'),
