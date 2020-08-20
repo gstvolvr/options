@@ -71,10 +71,10 @@ def update_eod_options(conn, iex):
 
             rows = [row for row in cursor.fetchall()]
 
-            with multiprocessing.Pool(4) as p:
+            with multiprocessing.Pool(2) as p:
                 params = p.map(_process, rows)
             flattened_params = [p for symbol_params in params for p in symbol_params]
-            update_cursor.execute(update_sql, flattened_params)
+            update_cursor.executemany(update_sql, flattened_params)
 
 
 def _process(row):
