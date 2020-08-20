@@ -2,11 +2,17 @@
 
 set -ex
 
+SCRIPT=`readlink -f $0`
+SCRIPT_DIR=`dirname $SCRIPT`
+APP_DIR=$SCRIPT_DIR/..
+
+source $APP_DIR/venv/bin/activate
+
 echo 'update prices'
-time PYTHONPATH=${HOME}/src/gstvolvr/options python3 ${HOME}/src/gstvolvr/options/options/daos/daily/update_prices.py
+time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/daos/daily/update_prices.py
 
 echo 'update options'
-time PYTHONPATH=${HOME}/src/gstvolvr/options python3 ${HOME}/src/gstvolvr/options/options/daos/daily/update_options.py
+time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/daos/daily/update_options.py
 
 echo 'load to sheets'
-time PYTHONPATH=${HOME}/src/gstvolvr/options python3 ${HOME}/src/gstvolvr/options/options/load_to_sheets.py
+time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/load_to_sheets.py
