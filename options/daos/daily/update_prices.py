@@ -3,6 +3,7 @@ import psycopg2
 import options.iex
 import datetime
 import os
+import multiprocessing
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -11,8 +12,8 @@ root.setLevel(logging.INFO)
 def update_eod_prices(conn, iex):
 
     sql = """
-    SELECT symbol 
-    FROM universe.symbols 
+    SELECT symbol
+    FROM universe.symbols
     WHERE in_universe = TRUE
     ORDER BY symbol;
     """
@@ -43,30 +44,34 @@ def update_eod_prices(conn, iex):
             cursor.execute('TRUNCATE universe.eod_prices;')
             cursor.execute(sql)
 
-            for i, (symbol,) in enumerate(cursor.fetchall()):
-                if (i != 0) and (i % 100) == 0:
-                    logging.info(f'processed: {i}')
+            symbols = [symbol for (symbol,) in cursor.fetchall()]
 
-                quote = iex.get_quote(symbol)
-                if quote is None:
-                    logging.info(f'check {symbol}: quote is empty')
-                    continue
+            with multiprocessing.Pool(4) as p:
+                params = p.map(_process, symbols)
+            update_cursor.executemany(update_sql, list(filter(None, params)))
 
-                if quote['latestSource'] == 'Close':
-                    if quote['closeTime'] is None:
-                        latest_price = quote['latestPrice']
-                        date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
-                        logging.info(f'{symbol}: using latest source')
-                    else:
-                        latest_price = quote['close']
-                        date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
-                    previous_date = date - datetime.timedelta(days=1)
-                    update_cursor.execute(update_sql, {
-                        'symbol': symbol,
-                        'latest_stock_price': latest_price,
-                        'latest_date': date.strftime('%Y-%m-%d'),
-                        'previous_stock_price': quote['previousClose'],
-                        'previous_date': previous_date.strftime('%Y-%m-%d')})
+
+def _process(symbol):
+    quote = iex.get_quote(symbol)
+    if quote is None:
+        logging.info(f'check {symbol}: quote is empty')
+        return
+
+    if quote['latestSource'] == 'Close':
+        if quote['closeTime'] is None:
+            latest_price = quote['latestPrice']
+            date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
+            logging.info(f'{symbol}: using latest source')
+        else:
+            latest_price = quote['close']
+            date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
+        previous_date = date - datetime.timedelta(days=1)
+        return {
+            'symbol': symbol,
+            'latest_stock_price': latest_price,
+            'latest_date': date.strftime('%Y-%m-%d'),
+            'previous_stock_price': quote['previousClose'],
+            'previous_date': previous_date.strftime('%Y-%m-%d')}
 
 
 if __name__ == '__main__':
