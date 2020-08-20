@@ -4,8 +4,8 @@ import os.path
 import os
 import psycopg2
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
 
 
 def main(conn):
@@ -83,11 +83,11 @@ def main(conn):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(SECRET_PATH, SCOPES)
-            creds = flow.run_local_server(port=0)
+            creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
+            #creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+        #with open('token.pickle', 'wb') as token:
+        #    pickle.dump(creds, token)
 
     RANGE_NAME= 'data'
 
@@ -99,6 +99,8 @@ def main(conn):
 
 
 if __name__ == '__main__':
+    print(os.getenv('DB_NAME'))
+    print(os.getenv('DB_USER'))
     with psycopg2.connect(dbname=os.getenv('DB_NAME'),
                           user=os.getenv('DB_USER'),
                           password=os.getenv('DB_PASS'),
