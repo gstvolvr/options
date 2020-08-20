@@ -17,8 +17,8 @@ def to_snake(name):
 
 def update_dividends(conn, iex):
     sql = """
-    SELECT symbol 
-    FROM universe.symbols 
+    SELECT symbol
+    FROM universe.symbols
     WHERE in_universe = TRUE
     ORDER BY symbol
     """
@@ -86,10 +86,13 @@ def update_dividends(conn, iex):
                 if dividend == {}:
                     params['calculated'] = True
                     dividend = iex.get_last_dividend(symbol)
+                    if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                        continue
+
+                    dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
 
                 if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
                     continue
-                dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
 
                 # TODO: update dividends
                 dividend_clean = {to_snake(k): _clean(v) for k, v in dividend.items()}
