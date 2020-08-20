@@ -1,8 +1,8 @@
 import logging
 import psycopg2
 import psycopg2.extras
-import options.iex
 import os
+import multiprocessing
 from options import util
 
 root = logging.getLogger()
@@ -79,23 +79,26 @@ def update_returns(conn):
             cursor.execute('TRUNCATE universe.returns;')
             cursor.execute(sql)
 
-            for i, (row) in enumerate(cursor.fetchall()):
-                row = dict(row)
-                if (i != 0) and (i % 100) == 0:
-                    logging.info(f'processed: {i}')
+            rows = [dict(row) for (row) in cursor.fetchall()]
 
-                row['mid'] = (row['bid'] + row['ask']) / 2
-                row['net'] = (row['previous_stock_price'] - row['mid'])
-                row['premium'] = row['strike_price'] - row['net']
-                row['insurance'] = (row['previous_stock_price'] - row['net']) / row['previous_stock_price']
+            with multiprocessing.Pool(4) as p:
+                params = p.map(_process, rows)
+            update_cursor.executemany(update_sql, list(filter(None, params)))
 
-                # ignore unrealistic premiums
-                if row['premium'] < 0.05:
-                    continue
 
-                for j in range(0, 6):
-                    row[f'return_after_{j+1}_div'] = util.days_to_next_event(row, i=j)
-                update_cursor.execute(update_sql, row)
+def _process(row):
+    row['mid'] = (row['bid'] + row['ask']) / 2
+    row['net'] = (row['previous_stock_price'] - row['mid'])
+    row['premium'] = row['strike_price'] - row['net']
+    row['insurance'] = (row['previous_stock_price'] - row['net']) / row['previous_stock_price']
+
+    # ignore unrealistic premiums
+    if row['premium'] < 0.05:
+        return None
+
+    for j in range(0, 6):
+        row[f'return_after_{j+1}_div'] = util.days_to_next_event(row, i=j)
+    return row
 
 
 if __name__ == '__main__':
