@@ -4,6 +4,7 @@ import options.iex
 import datetime
 import os
 import multiprocessing
+from dateutil.relativedelta import relativedelta
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -56,7 +57,6 @@ def _process(symbol):
     if quote is None:
         logging.info(f'check {symbol}: quote is empty')
         return
-
     if quote['latestSource'] == 'Close':
         if quote['closeTime'] is None:
             latest_price = quote['latestPrice']
@@ -72,6 +72,17 @@ def _process(symbol):
             'latest_date': date.strftime('%Y-%m-%d'),
             'previous_stock_price': quote['previousClose'],
             'previous_date': previous_date.strftime('%Y-%m-%d')}
+
+    elif quote['closeSource'] == 'official':
+        latest_price = quote['close']
+        yesterday = datetime.datetime.today() - relativedelta(days=1)
+        return {
+            'symbol': symbol,
+            'latest_stock_price': None,
+            'latest_date': None,
+            'previous_stock_price': quote['previousClose'],
+            'previous_date': yesterday.strftime('%Y-%m-%d')}
+        
 
 
 if __name__ == '__main__':
