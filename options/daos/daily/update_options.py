@@ -85,7 +85,7 @@ def _process(row):
 
     for expiration_date in dates:
         # TODO: remove 2021 requirement
-        if expiration_date >= min_contract_date and expiration_date[:4] == '2021':
+        if expiration_date >= min_contract_date:
             results = iex.get_calls(symbol, expiration_date)
             if results:
                 params.extend([{util.to_snake(k): v for k, v in instance.items()} for instance in results])
