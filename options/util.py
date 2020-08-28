@@ -8,6 +8,7 @@ import re
 import time
 import numpy as np
 
+FREQUENCY_MAPPING = {'quarterly': 3, 'semi-annual': 6, 'annual': 12, 'monthly': 1, 'bimonthly': 2}
 
 def get_returns(d_options, d_prices, d_dividends):
     assert 'symbol' in d_options.columns and 'symbol' in d_prices.columns and 'symbol' in d_dividends.columns
@@ -67,10 +68,10 @@ def days_to_first(row):
     today = datetime.datetime.today()
     return (row['dividend_ex_date'] - today).days
 
+
+
 def days_to_next_event(row, i):
-    frequency_map = {'quarterly': 4, 'semi-annual': 2, 'annual': 1, 'monthly': 12}
-    days_to_first_dividend = days_to_first(row)
-    months_in = 12 // frequency_map[row['dividend_frequency']]
+    months_in = FREQUENCY_MAPPING[row['dividend_frequency']]
     next_dividend_date = row['dividend_ex_date'] + relativedelta(months=months_in * (i+1))
 
     # if its Sunday, choose Monday
@@ -106,8 +107,8 @@ def get_dividends(iex, tickers):
         row.update(last_dividend_clean)
 
         rows.append(row)
-
     return pd.DataFrame(rows)
+
 
 def get_eod_prices(iex, tickers):
     prices = []
@@ -127,7 +128,6 @@ def get_eod_prices(iex, tickers):
                 latest_price = quote['close']
                 date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
             previous_date = date - datetime.timedelta(days=1)
-            price = quote['close']
             prices.append({
                 'symbol': ticker,
                 'comany_name': quote['companyName'],
@@ -137,6 +137,7 @@ def get_eod_prices(iex, tickers):
                 'previous_date': previous_date.strftime('%Y-%m-%d')})
     d_prices = pd.DataFrame(prices)
     return d_prices
+
 
 def get_eod_options(iex, tickers):
     """
