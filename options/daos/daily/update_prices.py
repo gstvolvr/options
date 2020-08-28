@@ -68,10 +68,10 @@ def _process(symbol):
         previous_date = date - datetime.timedelta(days=1)
         return {
             'symbol': symbol,
-            'latest_stock_price': latest_price,
-            'latest_date': date.strftime('%Y-%m-%d'),
-            'previous_stock_price': quote['previousClose'],
-            'previous_date': previous_date.strftime('%Y-%m-%d')}
+            'latest_stock_price': None,
+            'latest_date': None,
+            'previous_stock_price': latest_price,
+            'previous_date': date.strftime('%Y-%m-%d')}
 
     elif quote['closeSource'] == 'official':
         latest_price = quote['close']

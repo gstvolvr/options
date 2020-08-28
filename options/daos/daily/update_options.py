@@ -6,6 +6,7 @@ import os
 import psycopg2
 import psycopg2.extras
 from options import util
+from dateutil.relativedelta import relativedelta
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -71,6 +72,16 @@ def update_eod_options(conn, iex):
 
             rows = [row for row in cursor.fetchall()]
 
+            # sanity check – avoid running full update if numers are not up to date
+            yesterday = datetime.datetime.today() - relativedelta(days=1)
+            yesterday_fmt = datetime.datetime.strftime(yesterday, '%Y-%m-%d')
+            dates = iex.get_call_expiration_dates('BEN')
+            results = iex.get_calls('BEN', dates[0])
+
+            if results[0]['lastUpdated'] != yesterday_fmt:
+                logging.info(results[0])
+                raise Exception(f"Numbers haven't been updated to {yesterday_fmt}")
+
             with multiprocessing.Pool(2) as p:
                 params = p.map(_process, rows)
             flattened_params = [p for symbol_params in params for p in symbol_params]
@@ -84,7 +95,6 @@ def _process(row):
     params = []
 
     for expiration_date in dates:
-        # TODO: remove 2021 requirement
         if expiration_date >= min_contract_date:
             results = iex.get_calls(symbol, expiration_date)
             if results:
