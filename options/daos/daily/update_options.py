@@ -73,7 +73,9 @@ def update_eod_options(conn, iex):
             rows = [row for row in cursor.fetchall()]
 
             # sanity check – avoid running full update if numers are not up to date
-            yesterday = datetime.datetime.today() - relativedelta(days=1)
+            today = datetime.datetime.today()
+            delta = 3 if today.weekday() == 0 else 1
+            yesterday = today - relativedelta(days=delta)
             yesterday_fmt = datetime.datetime.strftime(yesterday, '%Y-%m-%d')
             dates = iex.get_call_expiration_dates('BEN')
             results = iex.get_calls('BEN', dates[0])
