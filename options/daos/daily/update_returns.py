@@ -1,89 +1,37 @@
-import logging
-import psycopg2
-import psycopg2.extras
-import os
-import multiprocessing
 from options import util
+import datetime
+import logging
+import multiprocessing
+import os
+import pickle
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
 
-def update_returns(conn):
-    sql = """
-    SELECT
-        o.id,
-        o.symbol,
-        o.strike_price,
-        o.expiration_date::TIMESTAMP,
-        o.bid,
-        o.ask,
-        o.is_adjusted,
-        p.previous_stock_price,
-        p.previous_stock_price,
-        d.amount as dividend_amount,
-        d.ex_date::TIMESTAMP as dividend_ex_date,
-        d.frequency as dividend_frequency
-    FROM universe.eod_call_options o
-    INNER JOIN universe.eod_prices p
-    on o.symbol = p.symbol AND o.last_updated = p.previous_date
-    INNER JOIN universe.dividends d
-    on o.symbol = d.symbol
-    WHERE
-        o.ask != 0 AND
-        o.is_adjusted = FALSE AND
-        d.frequency IS NOT NULL AND
-        d.frequency NOT IN ('final', 'unspecified')
-    ORDER BY id
-    """
+def update_returns(data_path):
 
-    update_sql = """
-    INSERT INTO universe.returns(
-          symbol,
-          id,
-          mid,
-          net,
-          premium,
-          insurance,
-          return_after_1_div,
-          return_after_2_div,
-          return_after_3_div,
-          db_updated
-    ) VALUES (
-        %(symbol)s,
-        %(id)s,
-        %(mid)s,
-        %(net)s,
-        %(premium)s,
-        %(insurance)s,
-        %(return_after_1_div)s,
-        %(return_after_2_div)s,
-        %(return_after_3_div)s,
-        NOW()
-    ) ON CONFLICT(id)
-    DO UPDATE SET
-        symbol = EXCLUDED.symbol,
-        id = EXCLUDED.id,
-        mid = EXCLUDED.mid,
-        net = EXCLUDED.net,
-        premium = EXCLUDED.premium,
-        insurance  = EXCLUDED.insurance,
-        return_after_1_div = EXCLUDED.return_after_1_div,
-        return_after_2_div = EXCLUDED.return_after_2_div,
-        return_after_3_div = EXCLUDED.return_after_3_div,
-        db_updated = NOW()
-    """
+    with open(f'{data_path}/options.pickle', 'rb') as f:
+        options = pickle.load(f)
 
-    with conn.cursor() as update_cursor:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
-            cursor.execute('TRUNCATE universe.returns;')
-            cursor.execute(sql)
+    with open(f'{data_path}/eod_prices.pickle', 'rb') as f:
+        prices = pickle.load(f)
 
-            rows = [dict(row) for (row) in cursor.fetchall()]
+    with open(f'{data_path}/dividends.pickle', 'rb') as f:
+        dividends = pickle.load(f)
 
-            with multiprocessing.Pool(4) as p:
-                params = p.map(_process, rows)
-            update_cursor.executemany(update_sql, list(filter(None, params)))
+    rows = options.copy()
+    for row in rows:
+        row.update(prices[row['symbol']])
+        row.update(dividends[row['symbol']])
+        row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
+        row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
+
+    with multiprocessing.Pool(4) as p:
+        returns = list(filter(None, p.map(_process, rows)))
+
+    with open(f'{data_path}/returns.pickle', 'wb') as f:
+        pickle.dump(returns, f, pickle.HIGHEST_PROTOCOL)
 
 
 def _process(row):
@@ -98,13 +46,10 @@ def _process(row):
 
     for j in range(0, 6):
         row[f'return_after_{j+1}_div'] = util.days_to_next_event(row, i=j)
+    row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
+    row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
 
 
 if __name__ == '__main__':
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        update_returns(conn)
+    update_returns(data_path=os.getenv('DATA_PATH'))

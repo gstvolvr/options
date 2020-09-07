@@ -50,8 +50,6 @@ def find_dividend(d_dividends, months=3):
     for col in d_dividends.columns:
         if 'date' in col.lower():
             d_dividends[col] = pd.to_datetime(d_dividends[col])
-    next_fields = [c for c in d_dividends.columns if c.startswith('next')]
-    last_fields = [c for c in d_dividends.columns if c.startswith('last')]
 
     d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].apply(_clean).combine_first(d_dividends['last_dividend_amount'])
     d_dividends = d_dividends[d_dividends['dividend_amount'].notna() & (d_dividends['dividend_amount'] != '')]
@@ -87,7 +85,7 @@ def days_to_next_event(row, i):
 
     if days_to_next_event <= 0 or (next_dividend_date - row['expiration_date']).days >= months_in*30:
         return
-    return ((row['dividend_amount'] * (i+1) + row['premium']) / row['net']) / days_to_next_event * 365
+    return ((float(row['dividend_amount']) * (i+1) + float(row['premium'])) / float(row['net'])) / days_to_next_event * 365
 
 
 def get_dividends(iex, tickers):

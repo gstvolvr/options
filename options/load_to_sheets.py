@@ -1,16 +1,13 @@
-import pandas as pd
-import pickle
-import os.path
-import os
-import psycopg2
-from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 from google.oauth2 import service_account
+from googleapiclient.discovery import build
+import os
+import os.path
+import pickle
 
 
-def main(conn):
+def main(data_path):
 
-    SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_ID')
+    SPREADSHEET_ID = os.getenv('QA_GOOGLE_SHEETS_ID')
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
 
@@ -18,7 +15,7 @@ def main(conn):
         'symbol',
         'company_name',
         'industry',
-        'stock_price',
+        'previous_stock_price',
         'net',
         'strike_price',
         'expiration_date',
@@ -34,45 +31,23 @@ def main(conn):
         'ask',
         'previous_date']
 
-    sql = """
-        SELECT
-            r.symbol,
-            c.company_name,
-            c.industry,
-            p.previous_stock_price as stock_price,
-            r.net,
-            o.strike_price,
-            to_char(o.expiration_date, 'YYYY-MM-DD') as expiration_date,
-            r.insurance,
-            r.premium,
-            d.amount as dividend_amount,
-            to_char(d.ex_date, 'YYYY-MM-DD') as dividend_ex_date,
-            r.return_after_1_div,
-            r.return_after_2_div,
-            r.return_after_3_div,
-            o.bid,
-            r.mid,
-            o.ask,
-            to_char(p.previous_date, 'YYYY-MM-DD') as previous_date
-        FROM universe.returns r
-        LEFT JOIN universe.companies c
-        ON r.symbol = c.symbol
-        LEFT JOIN universe.eod_call_options o
-        ON r.id = o.id
-        LEFT JOIN universe.eod_prices p
-        ON o.symbol = p.symbol AND o.last_updated = p.previous_date
-        LEFT JOIN universe.dividends d
-        ON r.symbol = d.symbol
-        WHERE r.return_after_1_div IS NOT NULL and p.previous_stock_price IS NOT NULL
-        ORDER BY r.symbol, o.expiration_date, o.strike_price;
-    """
+    with open(f'{data_path}/returns.pickle', 'rb') as f:
+        returns = pickle.load(f)
 
-    with conn.cursor() as cursor:
-        cursor.execute(sql)
-        values = cursor.fetchall()
+    with open(f'{data_path}/companies.pickle', 'rb') as f:
+        companies = pickle.load(f)
+
+    values = []
+    for row in returns:
+        ordered_result = []
+        for col in cols:
+            if col in ['company_name', 'industry']:
+                ordered_result.append(companies[row['symbol']][col])
+            else:
+                ordered_result.append(row[col])
+        values.append(ordered_result)
 
     creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
-
     RANGE_NAME= 'data'
 
     service = build('sheets', 'v4', credentials=creds, cache_discovery=False)
@@ -83,9 +58,4 @@ def main(conn):
 
 
 if __name__ == '__main__':
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        main(conn)
+    main(data_path=os.getenv('DATA_PATH'))

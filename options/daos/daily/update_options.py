@@ -1,97 +1,55 @@
+from dateutil.relativedelta import relativedelta
+from options import util
 import datetime
 import logging
 import multiprocessing
 import options.iex
 import os
-import psycopg2
-import psycopg2.extras
-from options import util
-from dateutil.relativedelta import relativedelta
+import pickle
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
 
-def update_eod_options(conn, iex):
+def update_eod_options(data_path):
 
-    sql = """
-    SELECT d.symbol, d.ex_date
-    FROM universe.dividends d
-    INNER JOIN universe.eod_prices p
-    ON d.symbol = p.symbol
-    LEFT JOIN (
-        SELECT symbol, max(db_updated) as latest_update
-        FROM universe.eod_call_options
-        GROUP BY symbol) o
-    ON d.symbol = o.symbol
-    WHERE
-        (d.gross_annual_yield / p.previous_stock_price) > 0.02 AND
-        p.previous_stock_price > 7.5 AND
-        d.ex_date > NOW() AND
-        (o.latest_update IS NULL OR o.latest_update < (NOW() - INTERVAL '12 hours'));
-    """
+    with open(f'{data_path}/dividends.pickle', 'rb') as f:
+        dividends = pickle.load(f)
+    with open(f'{data_path}/eod_prices.pickle', 'rb') as f:
+        prices = pickle.load(f)
 
-    update_sql = """
-    INSERT INTO universe.eod_call_options(
-        symbol, id, expiration_date, contract_size, strike_price, closing_price, last_updated,
-        type, volume, bid, ask, is_adjusted
-    ) VALUES (
-        %(symbol)s,
-        %(id)s,
-        %(expiration_date)s,
-        %(contract_size)s,
-        %(strike_price)s,
-        %(closing_price)s,
-        %(last_updated)s,
-        %(type)s,
-        %(volume)s,
-        %(bid)s,
-        %(ask)s,
-        %(is_adjusted)s
-    )
-    ON CONFLICT(id)
-    DO UPDATE SET
-        symbol = EXCLUDED.symbol,
-        id = EXCLUDED.id,
-        expiration_date = EXCLUDED.expiration_date,
-        contract_size = EXCLUDED.contract_size,
-        strike_price = EXCLUDED.strike_price,
-        closing_price = EXCLUDED.closing_price,
-        last_updated = EXCLUDED.last_updated,
-        type = EXCLUDED.type,
-        volume = EXCLUDED.volume,
-        bid = EXCLUDED.bid,
-        ask = EXCLUDED.ask,
-        is_adjusted = EXCLUDED.is_adjusted
-    """
+    print(prices[list(prices.keys())[0]])
+    print(dividends[list(dividends.keys())[0]])
 
-    with conn.cursor() as update_cursor:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
-            cursor.execute('TRUNCATE universe.eod_call_options CASCADE;')
-            cursor.execute(sql)
+    keys = dividends.keys()
+    for d in keys:
+        dividends[d].update(prices[d])
 
-            rows = [row for row in cursor.fetchall()]
+    # sanity check – avoid running full update if numbers are not up to date
+    today = datetime.datetime.today()
+    weekend = today.weekday() in [5, 6]
+    delta = 3 if today.weekday() == 0 else 1
+    yesterday = today - relativedelta(days=delta)
+    yesterday_fmt = datetime.datetime.strftime(yesterday, '%Y-%m-%d')
+    dates = iex.get_call_expiration_dates('BEN')
+    results = iex.get_calls('BEN', dates[0])
 
-            # sanity check – avoid running full update if numers are not up to date
-            today = datetime.datetime.today()
-            delta = 3 if today.weekday() == 0 else 1
-            yesterday = today - relativedelta(days=delta)
-            yesterday_fmt = datetime.datetime.strftime(yesterday, '%Y-%m-%d')
-            dates = iex.get_call_expiration_dates('BEN')
-            results = iex.get_calls('BEN', dates[0])
+    if results[0]['lastUpdated'] != yesterday_fmt and not weekend:
+        logging.info(results[0])
+        raise Exception(f"Numbers haven't been updated to {yesterday_fmt}")
 
-            if results[0]['lastUpdated'] != yesterday_fmt:
-                logging.info(results[0])
-                raise Exception(f"Numbers haven't been updated to {yesterday_fmt}")
+    with multiprocessing.Pool(2) as p:
+        params = p.map(_process, dividends.items())
 
-            with multiprocessing.Pool(2) as p:
-                params = p.map(_process, rows)
-            flattened_params = [p for symbol_params in params for p in symbol_params]
-            update_cursor.executemany(update_sql, flattened_params)
+    options = [p for symbol_params in params for p in symbol_params]
+
+    with open(f'{data_path}/options.pickle', 'wb') as f:
+        pickle.dump(options, f, pickle.HIGHEST_PROTOCOL)
 
 
-def _process(row):
-    symbol, min_contract_date = row['symbol'], datetime.datetime.strftime(row['ex_date'], '%Y%m')
+def _process(items):
+    symbol, values = items
+    min_contract_date = values['dividend_ex_date'][:5].replace('-', '')
 
     dates = iex.get_call_expiration_dates(symbol)
     params = []
@@ -107,10 +65,4 @@ def _process(row):
 if __name__ == '__main__':
     iex = options.iex.IEX()
     iex.token = os.getenv('IEX_TOKEN')
-
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        update_eod_options(conn, iex)
+    update_eod_options(data_path=os.getenv('DATA_PATH'))
