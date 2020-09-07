@@ -18,9 +18,6 @@ def update_eod_options(data_path):
     with open(f'{data_path}/eod_prices.pickle', 'rb') as f:
         prices = pickle.load(f)
 
-    print(prices[list(prices.keys())[0]])
-    print(dividends[list(dividends.keys())[0]])
-
     keys = dividends.keys()
     for d in keys:
         dividends[d].update(prices[d])

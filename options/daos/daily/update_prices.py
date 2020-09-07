@@ -17,7 +17,7 @@ def update_eod_prices(data_path):
         symbols = [symbol.strip() for symbol in f.readlines()]
 
     with multiprocessing.Pool(4) as p:
-        list_params = p.map(_process, symbols[:10])
+        list_params = p.map(_process, symbols)
 
     prices = {}
     for params in list_params:
