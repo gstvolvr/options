@@ -10,6 +10,7 @@ import numpy as np
 
 FREQUENCY_MAPPING = {'quarterly': 3, 'semi-annual': 6, 'annual': 12, 'monthly': 1, 'bimonthly': 2}
 
+
 def get_returns(d_options, d_prices, d_dividends):
     assert 'symbol' in d_options.columns and 'symbol' in d_prices.columns and 'symbol' in d_dividends.columns
 
