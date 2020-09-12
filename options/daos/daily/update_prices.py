@@ -22,12 +22,12 @@ def update_eod_prices(data_path):
     if not list_params:
         return
 
-    field_names = list_params[0].keys()
+    writer = None
     with open(f'{data_path}/eod_prices.csv', 'w') as f:
-        writer = csv.DictWriter(f, fieldnames=field_names)
-
-        writer.writeheader()
-        for params in list_params:
+        for params in sorted(list_params, key=lambda x: x['symbol']):
+            if writer is None:
+                writer = csv.DictWriter(f, fieldnames=params.keys())
+                writer.writeheader()
             if params['previous_stock_price'] > MIN_STOCK_PRICE:
                 writer.writerow(params)
 
