@@ -31,16 +31,15 @@ def update_eod_options(data_path):
         with open(f'{data_path}/dividends.csv', 'r') as f:
             dividends_reader = csv.DictReader(f)
 
-            with multiprocessing.Pool(2) as p:
-                params = p.map(_process, dividends_reader)
+            for dividend in dividends_reader:
+                symbol_params = _process(dividend)
 
-                for symbol_params in params:
-                    for date_params in symbol_params:
-                        if writer is None:
-                            writer = csv.DictWriter(w, fieldnames=date_params.keys())
-                            writer.writeheader()
-                        if not date_params['is_adjusted'] and date_params['ask'] != 0:
-                            writer.writerow(date_params)
+                for date_params in symbol_params:
+                    if writer is None:
+                        writer = csv.DictWriter(w, fieldnames=date_params.keys())
+                        writer.writeheader()
+                    if not date_params['is_adjusted'] and date_params['ask'] != 0:
+                        writer.writerow(date_params)
 
 
 def _process(item):
