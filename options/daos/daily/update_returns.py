@@ -31,7 +31,7 @@ def update_returns(data_path):
                 row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
 
                 returns = _process(row)
-                if returns is not None:
+                if returns is not None and returns['return_after_1_div'] is not None:
                     if writer is None:
                         writer = csv.DictWriter(w, fieldnames=returns.keys())
                         writer.writeheader()

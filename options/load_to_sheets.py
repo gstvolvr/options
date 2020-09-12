@@ -5,6 +5,7 @@ import os.path
 import csv
 import collections
 
+BATCH_SIZE = 100
 
 def main(data_path):
 
@@ -36,10 +37,23 @@ def main(data_path):
         companies = {row['symbol']: row for row in csv.DictReader(f)}
 
     values = []
+
+    creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
+    SHEET_NAME = 'data'
+    RANGE_NAME= f'{SHEET_NAME}!A{{row_number}}:R'
+
+    service = build('sheets', 'v4', credentials=creds, cache_discovery=False)
+    # clear current data in the spreadsheet
+    service.spreadsheets().values().clear(spreadsheetId=SPREADSHEET_ID, range=SHEET_NAME).execute()
+    body = {'values': [list(cols.keys())]}
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME.format(row_number=1), valueInputOption='RAW', body=body).execute()
+
+    row_number = 2
     with open(f'{data_path}/returns.csv', 'r') as f:
         returns = csv.DictReader(f)
 
-        for row in returns:
+        for i, row in enumerate(returns):
             ordered_result = []
             for col, type_func in cols.items():
                 if col in ['company_name', 'industry']:
@@ -49,15 +63,21 @@ def main(data_path):
                     ordered_result.append(value)
             values.append(ordered_result)
 
-    creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
-    RANGE_NAME= 'data'
-
-    service = build('sheets', 'v4', credentials=creds, cache_discovery=False)
-    service.spreadsheets().values().clear(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
-    body = {'values': [list(cols.keys())] + list(map(list, values))}
-    service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME, valueInputOption='RAW', body=body).execute()
-
+            if i % BATCH_SIZE == 0 and i != 0:
+                body = {'values': list(map(list, values))}
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGE_NAME.format(row_number=row_number),
+                    valueInputOption='RAW',
+                    body=body).execute()
+                values = []
+                row_number += BATCH_SIZE
+        body = {'values': list(map(list, values))}
+        service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGE_NAME.format(row_number=row_number),
+            valueInputOption='RAW',
+            body=body).execute()
 
 if __name__ == '__main__':
     main(data_path=os.getenv('DATA_PATH'))

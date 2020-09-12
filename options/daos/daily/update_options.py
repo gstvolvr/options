@@ -39,7 +39,7 @@ def update_eod_options(data_path):
                         if writer is None:
                             writer = csv.DictWriter(w, fieldnames=date_params.keys())
                             writer.writeheader()
-                        if not date_params['is_adjusted']:
+                        if not date_params['is_adjusted'] and date_params['ask'] != 0:
                             writer.writerow(date_params)
 
 
