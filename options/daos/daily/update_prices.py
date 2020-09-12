@@ -1,55 +1,35 @@
-import logging
-import psycopg2
-import options.iex
-import datetime
-import os
-import multiprocessing
 from dateutil.relativedelta import relativedelta
+import datetime
+import logging
+import multiprocessing
+import options.iex
+import os
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
+MIN_STOCK_PRICE = 7.5
 
-def update_eod_prices(conn, iex):
 
-    sql = """
-    SELECT symbol
-    FROM universe.symbols
-    WHERE in_universe = TRUE
-    ORDER BY symbol;
-    """
+def update_eod_prices(data_path):
+    with open(f'{data_path}/symbols.csv', 'r') as f:
+        symbols = [symbol.strip() for symbol in f.readlines()]
 
-    update_sql = """
-    INSERT INTO universe.eod_prices(
-        symbol, latest_stock_price, latest_date, previous_stock_price, previous_date, db_updated
-    ) VALUES (
-        %(symbol)s,
-        %(latest_stock_price)s,
-        %(latest_date)s,
-        %(previous_stock_price)s,
-        %(previous_date)s,
-        NOW()
-    )
-    ON CONFLICT(symbol)
-    DO UPDATE SET
-        symbol = EXCLUDED.symbol,
-        latest_stock_price = EXCLUDED.latest_stock_price,
-        latest_date = EXCLUDED.latest_date,
-        previous_stock_price = EXCLUDED.previous_stock_price,
-        previous_date = EXCLUDED.previous_date,
-        db_updated = NOW()
-    """
+    with multiprocessing.Pool(4) as p:
+        list_params = p.map(_process, symbols)
 
-    with conn.cursor() as update_cursor:
-        with conn.cursor() as cursor:
-            cursor.execute('TRUNCATE universe.eod_prices;')
-            cursor.execute(sql)
+    if not list_params:
+        return
 
-            symbols = [symbol for (symbol,) in cursor.fetchall()]
-
-            with multiprocessing.Pool(4) as p:
-                params = p.map(_process, symbols)
-            update_cursor.executemany(update_sql, list(filter(None, params)))
+    writer = None
+    with open(f'{data_path}/eod_prices.csv', 'w') as f:
+        for params in sorted(list_params, key=lambda x: x['symbol']):
+            if writer is None:
+                writer = csv.DictWriter(f, fieldnames=params.keys())
+                writer.writeheader()
+            if params['previous_stock_price'] > MIN_STOCK_PRICE:
+                writer.writerow(params)
 
 
 def _process(symbol):
@@ -65,7 +45,6 @@ def _process(symbol):
         else:
             latest_price = quote['close']
             date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
-        previous_date = date - datetime.timedelta(days=1)
         return {
             'symbol': symbol,
             'latest_stock_price': None,
@@ -74,7 +53,6 @@ def _process(symbol):
             'previous_date': date.strftime('%Y-%m-%d')}
 
     elif quote['closeSource'] == 'official':
-        latest_price = quote['close']
         yesterday = datetime.datetime.today() - relativedelta(days=1)
         return {
             'symbol': symbol,
@@ -88,10 +66,4 @@ def _process(symbol):
 if __name__ == '__main__':
     iex = options.iex.IEX()
     iex.token = os.getenv('IEX_TOKEN')
-
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        update_eod_prices(conn, iex)
+    update_eod_prices(data_path=os.getenv('DATA_PATH'))

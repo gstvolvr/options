@@ -1,11 +1,11 @@
+from dateutil.relativedelta import relativedelta
+from options import util
 import datetime
 import logging
 import options.iex
 import os
-import psycopg2
 import re
-from dateutil.relativedelta import relativedelta
-from options import util
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -15,54 +15,7 @@ def to_snake(name):
     return re.sub(f'(?<!^)(?=[A-Z])', '_', name).lower()
 
 
-def update_dividends(conn, iex):
-    sql = """
-    SELECT symbol
-    FROM universe.symbols
-    WHERE in_universe = TRUE
-    ORDER BY symbol
-    """
-
-    update_sql = """
-    INSERT INTO universe.dividends(
-        symbol,
-        ex_date,
-        payment_date,
-        record_date,
-        declared_date,
-        amount,
-        currency,
-        description,
-        frequency,
-        calculated,
-        gross_annual_yield
-    ) VALUES (
-        %(symbol)s,
-        %(ex_date)s,
-        %(payment_date)s,
-        %(record_date)s,
-        %(declared_date)s,
-        %(amount)s,
-        %(currency)s,
-        %(description)s,
-        %(frequency)s,
-        %(calculated)s,
-        %(gross_annual_yield)s
-    )
-    ON CONFLICT(symbol)
-    DO UPDATE SET
-        ex_date = EXCLUDED.ex_date,
-        payment_date = EXCLUDED.payment_date,
-        record_date = EXCLUDED.record_date,
-        declared_date = EXCLUDED.declared_date,
-        amount = EXCLUDED.amount,
-        currency = EXCLUDED.currency,
-        description = EXCLUDED.description,
-        frequency = EXCLUDED.frequency,
-        calculated = EXCLUDED.calculated,
-        gross_annual_yield = EXCLUDED.gross_annual_yield
-    """
-
+def update_dividends(data_path):
     def _clean(value):
         if value == '':
             return None
@@ -72,48 +25,56 @@ def update_dividends(conn, iex):
         new_date = datetime.datetime.strptime(date, '%Y-%m-%d') + relativedelta(months=months)
         return datetime.datetime.strftime(new_date, '%Y-%m-%d')
 
-    with conn.cursor() as update_cursor:
-        with conn.cursor() as cursor:
-            cursor.execute(sql)
+    today = datetime.datetime.strftime(datetime.date.today(), '%Y-%m-%d')
+    writer = None
+    with open(f'{data_path}/dividends.csv', 'w') as w:
+        with open(f'{data_path}/eod_prices.csv', 'r') as r:
+            prices = csv.DictReader(r)
 
-            for i, (symbol,) in enumerate(cursor.fetchall()):
+            for i, row in enumerate(prices):
                 if (i != 0) and (i % 100) == 0:
                     logging.info(f'processed: {i}')
 
-                params = {'symbol': symbol, 'calculated': False}
+                symbol = row['symbol']
+
                 dividend = iex.get_next_dividend(symbol)
 
                 if dividend == {}:
-                    params['calculated'] = True
                     dividend = iex.get_last_dividend(symbol)
+                    dividend['symbol'] = symbol
+                    dividend['calculated'] = True
                     if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
                         continue
-
                     dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
+                else:
+                    dividend['calculated'] = False
 
                 if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
                     continue
 
-                # TODO: update dividends
-                dividend_clean = {to_snake(k): _clean(v) for k, v in dividend.items()}
+                dividend_clean = {'dividend_' + to_snake(k): _clean(v) for k, v in dividend.items()}
+
                 # ignore non-cash dividends
-                if dividend_clean['flag'] != 'Cash' or dividend_clean['amount'] is None:
+                if dividend_clean['dividend_flag'] != 'Cash' or \
+                        dividend_clean['dividend_amount'] is None or \
+                        dividend_clean['dividend_ex_date'] < today:
+                            continue
+                # once we know `amount` is not None
+                dividend_clean['gross_annual_yield'] = float(dividend_clean['dividend_amount']) * \
+                                                       (12. / util.FREQUENCY_MAPPING[dividend_clean['dividend_frequency']])
+
+                if dividend_clean['gross_annual_yield'] / float(row['previous_stock_price']) <= .02:
                     continue
 
-                dividend_clean['gross_annual_yield'] = float(dividend_clean['amount']) * \
-                                                       (12. / util.FREQUENCY_MAPPING[dividend['frequency']])
+                if writer is None:
+                    writer = csv.DictWriter(w, fieldnames=dividend_clean.keys())
+                    writer.writeheader()
+                writer.writerow(dividend_clean)
 
-                params.update(dividend_clean)
-                update_cursor.execute(update_sql, params)
 
 
 if __name__ == '__main__':
     iex = options.iex.IEX()
     iex.token = os.getenv('IEX_TOKEN')
 
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        update_dividends(conn, iex)
+    update_dividends(data_path=os.getenv('DATA_PATH'))

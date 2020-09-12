@@ -1,110 +1,60 @@
-import logging
-import psycopg2
-import psycopg2.extras
-import os
-import multiprocessing
 from options import util
+import datetime
+import logging
+import multiprocessing
+import os
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
+BATCH_SIZE = 1000
 
-def update_returns(conn):
-    sql = """
-    SELECT
-        o.id,
-        o.symbol,
-        o.strike_price,
-        o.expiration_date::TIMESTAMP,
-        o.bid,
-        o.ask,
-        o.is_adjusted,
-        p.previous_stock_price,
-        p.previous_stock_price,
-        d.amount as dividend_amount,
-        d.ex_date::TIMESTAMP as dividend_ex_date,
-        d.frequency as dividend_frequency
-    FROM universe.eod_call_options o
-    INNER JOIN universe.eod_prices p
-    on o.symbol = p.symbol AND o.last_updated = p.previous_date
-    INNER JOIN universe.dividends d
-    on o.symbol = d.symbol
-    WHERE
-        o.ask != 0 AND
-        o.is_adjusted = FALSE AND
-        d.frequency IS NOT NULL AND
-        d.frequency NOT IN ('final', 'unspecified')
-    ORDER BY id
-    """
+def update_returns(data_path):
 
-    update_sql = """
-    INSERT INTO universe.returns(
-          symbol,
-          id,
-          mid,
-          net,
-          premium,
-          insurance,
-          return_after_1_div,
-          return_after_2_div,
-          return_after_3_div,
-          db_updated
-    ) VALUES (
-        %(symbol)s,
-        %(id)s,
-        %(mid)s,
-        %(net)s,
-        %(premium)s,
-        %(insurance)s,
-        %(return_after_1_div)s,
-        %(return_after_2_div)s,
-        %(return_after_3_div)s,
-        NOW()
-    ) ON CONFLICT(id)
-    DO UPDATE SET
-        symbol = EXCLUDED.symbol,
-        id = EXCLUDED.id,
-        mid = EXCLUDED.mid,
-        net = EXCLUDED.net,
-        premium = EXCLUDED.premium,
-        insurance  = EXCLUDED.insurance,
-        return_after_1_div = EXCLUDED.return_after_1_div,
-        return_after_2_div = EXCLUDED.return_after_2_div,
-        return_after_3_div = EXCLUDED.return_after_3_div,
-        db_updated = NOW()
-    """
+    # load prices and dividends into memory
+    with open(f'{data_path}/eod_prices.csv', 'r') as f:
+        prices = {row['symbol']: row for row in csv.DictReader(f)}
 
-    with conn.cursor() as update_cursor:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
-            cursor.execute('TRUNCATE universe.returns;')
-            cursor.execute(sql)
+    with open(f'{data_path}/dividends.csv', 'r') as f:
+        dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
 
-            rows = [dict(row) for (row) in cursor.fetchall()]
+    writer = None
+    with open(f'{data_path}/returns.csv', 'w') as w:
+        with open(f'{data_path}/options.csv', 'r') as f:
+            options_reader = csv.DictReader(f)
 
-            with multiprocessing.Pool(4) as p:
-                params = p.map(_process, rows)
-            update_cursor.executemany(update_sql, list(filter(None, params)))
+            for row in options_reader:
+                row.update(prices[row['symbol']])
+                row.update(dividends[row['symbol']])
+                row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
+                row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
+
+                returns = _process(row)
+                if returns is not None and returns['return_after_1_div'] is not None:
+                    if writer is None:
+                        writer = csv.DictWriter(w, fieldnames=returns.keys())
+                        writer.writeheader()
+                    writer.writerow(returns)
 
 
-def _process(row):
-    row['mid'] = (row['bid'] + row['ask']) / 2
-    row['net'] = (row['previous_stock_price'] - row['mid'])
-    row['premium'] = row['strike_price'] - row['net']
-    row['insurance'] = (row['previous_stock_price'] - row['net']) / row['previous_stock_price']
+def _process(r):
+    row = r.copy()
+    row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
+    row['net'] = (float(row['previous_stock_price']) - float(row['mid']))
+    row['premium'] = float(row['strike_price']) - float(row['net'])
+    row['insurance'] = (float(row['previous_stock_price']) - float(row['net'])) / float(row['previous_stock_price'])
 
     # ignore unrealistic premiums
     if row['premium'] < 0.05:
         return None
 
     for j in range(0, 6):
-        row[f'return_after_{j+1}_div'] = util.days_to_next_event(row, i=j)
+        row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, n_dividends=j)
+    row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
+    row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
 
 
 if __name__ == '__main__':
-    with psycopg2.connect(dbname=os.getenv('DB_NAME'),
-                          user=os.getenv('DB_USER'),
-                          password=os.getenv('DB_PASS'),
-                          host=os.getenv('DB_HOST'),
-                          port=os.getenv('DB_PORT')) as conn:
-        update_returns(conn)
+    update_returns(data_path=os.getenv('DATA_PATH'))

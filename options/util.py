@@ -1,14 +1,13 @@
 from functools import partial
-from typing import Dict
 from dateutil.relativedelta import relativedelta
 import datetime
 import logging
 import pandas as pd
 import re
-import time
 import numpy as np
 
 FREQUENCY_MAPPING = {'quarterly': 3, 'semi-annual': 6, 'annual': 12, 'monthly': 1, 'bimonthly': 2}
+
 
 def get_returns(d_options, d_prices, d_dividends):
     assert 'symbol' in d_options.columns and 'symbol' in d_prices.columns and 'symbol' in d_dividends.columns
@@ -38,7 +37,7 @@ def get_returns(d_options, d_prices, d_dividends):
             d_merged[col] = pd.to_datetime(d_merged[col])
 
     for i in range(0, 4):
-        d_merged[f'return_after_{i+1}_div'] = d_merged.apply(partial(days_to_next_event, i=i), axis=1)
+        d_merged[f'return_after_{i+1}_div'] = d_merged.apply(partial(calculate_return_after_dividends, i=i), axis=1)
     return d_merged
 
 def _clean(value):
@@ -50,8 +49,6 @@ def find_dividend(d_dividends, months=3):
     for col in d_dividends.columns:
         if 'date' in col.lower():
             d_dividends[col] = pd.to_datetime(d_dividends[col])
-    next_fields = [c for c in d_dividends.columns if c.startswith('next')]
-    last_fields = [c for c in d_dividends.columns if c.startswith('last')]
 
     d_dividends['dividend_amount'] = d_dividends['next_dividend_amount'].apply(_clean).combine_first(d_dividends['last_dividend_amount'])
     d_dividends = d_dividends[d_dividends['dividend_amount'].notna() & (d_dividends['dividend_amount'] != '')]
@@ -70,9 +67,9 @@ def days_to_first(row):
 
 
 
-def days_to_next_event(row, i):
+def calculate_return_after_dividends(row, n_dividends):
     months_in = FREQUENCY_MAPPING[row['dividend_frequency']]
-    next_dividend_date = row['dividend_ex_date'] + relativedelta(months=months_in * (i+1))
+    next_dividend_date = row['dividend_ex_date'] + relativedelta(months=months_in * (n_dividends+1))
 
     # if its Sunday, choose Monday
     if next_dividend_date.weekday() == 6:
@@ -87,7 +84,7 @@ def days_to_next_event(row, i):
 
     if days_to_next_event <= 0 or (next_dividend_date - row['expiration_date']).days >= months_in*30:
         return
-    return ((row['dividend_amount'] * (i+1) + row['premium']) / row['net']) / days_to_next_event * 365
+    return ((float(row['dividend_amount']) * (n_dividends+1) + float(row['premium'])) / float(row['net'])) / days_to_next_event * 365
 
 
 def get_dividends(iex, tickers):
