@@ -1,11 +1,9 @@
 from functools import partial
-from typing import Dict
 from dateutil.relativedelta import relativedelta
 import datetime
 import logging
 import pandas as pd
 import re
-import time
 import numpy as np
 
 FREQUENCY_MAPPING = {'quarterly': 3, 'semi-annual': 6, 'annual': 12, 'monthly': 1, 'bimonthly': 2}
