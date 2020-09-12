@@ -14,11 +14,6 @@ root.setLevel(logging.INFO)
 
 def update_eod_options(data_path):
 
-        # with open(f'{data_path}/eod_prices.csv', 'r') as r:
-        #     prices_reader = csv.DictReader(r)
-        #     for row in prices_reader:
-        #         dividends[row['symbol']].update(row)
-
     # sanity check – avoid running full update if numbers are not up to date
     today = datetime.datetime.today()
     weekend = today.weekday() in [5, 6]
@@ -45,7 +40,8 @@ def update_eod_options(data_path):
                         if writer is None:
                             writer = csv.DictWriter(w, fieldnames=date_params.keys())
                             writer.writeheader()
-                        writer.writerow(date_params)
+                        if not date_params['is_adjusted']:
+                            writer.writerow(date_params)
 
 
 def _process(item):
