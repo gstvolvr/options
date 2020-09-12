@@ -6,6 +6,7 @@ import multiprocessing
 import options.iex
 import os
 import pickle
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -13,14 +14,10 @@ root.setLevel(logging.INFO)
 
 def update_eod_options(data_path):
 
-    with open(f'{data_path}/dividends.pickle', 'rb') as f:
-        dividends = pickle.load(f)
-    with open(f'{data_path}/eod_prices.pickle', 'rb') as f:
-        prices = pickle.load(f)
-
-    keys = dividends.keys()
-    for d in keys:
-        dividends[d].update(prices[d])
+        # with open(f'{data_path}/eod_prices.csv', 'r') as r:
+        #     prices_reader = csv.DictReader(r)
+        #     for row in prices_reader:
+        #         dividends[row['symbol']].update(row)
 
     # sanity check – avoid running full update if numbers are not up to date
     today = datetime.datetime.today()
@@ -35,25 +32,31 @@ def update_eod_options(data_path):
         logging.info(results[0])
         raise Exception(f"Numbers haven't been updated to {yesterday_fmt}")
 
-    with multiprocessing.Pool(2) as p:
-        params = p.map(_process, dividends.items())
+    writer = None
+    with open(f'{data_path}/options.csv', 'w') as w:
+        with open(f'{data_path}/dividends.csv', 'r') as f:
+            dividends_reader = csv.DictReader(f)
 
-    options = [p for symbol_params in params for p in symbol_params]
+            with multiprocessing.Pool(2) as p:
+                params = p.map(_process, dividends_reader)
 
-    with open(f'{data_path}/options.pickle', 'wb') as f:
-        pickle.dump(options, f, pickle.HIGHEST_PROTOCOL)
+                for symbol_params in params:
+                    for date_params in symbol_params:
+                        if writer is None:
+                            writer = csv.DictWriter(w, fieldnames=date_params.keys())
+                            writer.writeheader()
+                        writer.writerow(date_params)
 
 
-def _process(items):
-    symbol, values = items
-    min_contract_date = values['dividend_ex_date'][:5].replace('-', '')
+def _process(item):
+    min_contract_date = item['dividend_ex_date'][:5].replace('-', '')
 
-    dates = iex.get_call_expiration_dates(symbol)
+    dates = iex.get_call_expiration_dates(item['dividend_symbol'])
     params = []
 
     for expiration_date in dates:
         if expiration_date >= min_contract_date:
-            results = iex.get_calls(symbol, expiration_date)
+            results = iex.get_calls(item['dividend_symbol'], expiration_date)
             if results:
                 params.extend([{util.to_snake(k): v for k, v in instance.items()} for instance in results])
     return params

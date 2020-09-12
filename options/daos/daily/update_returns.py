@@ -3,42 +3,46 @@ import datetime
 import logging
 import multiprocessing
 import os
-import pickle
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
+BATCH_SIZE = 1000
 
 def update_returns(data_path):
 
-    with open(f'{data_path}/options.pickle', 'rb') as f:
-        options = pickle.load(f)
+    # load prices and dividends into memory
+    with open(f'{data_path}/eod_prices.csv', 'r') as f:
+        prices = {row['symbol']: row for row in csv.DictReader(f)}
 
-    with open(f'{data_path}/eod_prices.pickle', 'rb') as f:
-        prices = pickle.load(f)
+    with open(f'{data_path}/dividends.csv', 'r') as f:
+        dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
 
-    with open(f'{data_path}/dividends.pickle', 'rb') as f:
-        dividends = pickle.load(f)
+    writer = None
+    with open(f'{data_path}/returns.csv', 'w') as w:
+        with open(f'{data_path}/options.csv', 'r') as f:
+            options_reader = csv.DictReader(f)
 
-    rows = options.copy()
-    for row in rows:
-        row.update(prices[row['symbol']])
-        row.update(dividends[row['symbol']])
-        row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
-        row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
+            for row in options_reader:
+                row.update(prices[row['symbol']])
+                row.update(dividends[row['symbol']])
+                row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
+                row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
 
-    with multiprocessing.Pool(4) as p:
-        returns = list(filter(None, p.map(_process, rows)))
-
-    with open(f'{data_path}/returns.pickle', 'wb') as f:
-        pickle.dump(returns, f, pickle.HIGHEST_PROTOCOL)
+                returns = _process(row)
+                if returns is not None:
+                    if writer is None:
+                        writer = csv.DictWriter(w, fieldnames=returns.keys())
+                        writer.writeheader()
+                    writer.writerow(row)
 
 
 def _process(row):
-    row['mid'] = (row['bid'] + row['ask']) / 2
-    row['net'] = (row['previous_stock_price'] - row['mid'])
-    row['premium'] = row['strike_price'] - row['net']
-    row['insurance'] = (row['previous_stock_price'] - row['net']) / row['previous_stock_price']
+    row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
+    row['net'] = (float(row['previous_stock_price']) - float(row['mid']))
+    row['premium'] = float(row['strike_price']) - float(row['net'])
+    row['insurance'] = (float(row['previous_stock_price']) - float(row['net'])) / float(row['previous_stock_price'])
 
     # ignore unrealistic premiums
     if row['premium'] < 0.05:

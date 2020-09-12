@@ -2,7 +2,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import os
 import os.path
-import pickle
+import csv
 
 
 def main(data_path):
@@ -31,21 +31,21 @@ def main(data_path):
         'ask',
         'previous_date']
 
-    with open(f'{data_path}/returns.pickle', 'rb') as f:
-        returns = pickle.load(f)
-
-    with open(f'{data_path}/companies.pickle', 'rb') as f:
-        companies = pickle.load(f)
+    with open(f'{data_path}/companies.csv', 'r') as f:
+        companies = {row['symbol']: row for row in csv.DictReader(f)}
 
     values = []
-    for row in returns:
-        ordered_result = []
-        for col in cols:
-            if col in ['company_name', 'industry']:
-                ordered_result.append(companies[row['symbol']][col])
-            else:
-                ordered_result.append(row[col])
-        values.append(ordered_result)
+    with open(f'{data_path}/returns.csv', 'r') as f:
+        returns = csv.DictReader(f)
+
+        for row in returns:
+            ordered_result = []
+            for col in cols:
+                if col in ['company_name', 'industry']:
+                    ordered_result.append(companies[row['symbol']][col])
+                else:
+                    ordered_result.append(row[col])
+            values.append(ordered_result)
 
     creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
     RANGE_NAME= 'data'

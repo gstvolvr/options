@@ -4,7 +4,7 @@ import logging
 import multiprocessing
 import options.iex
 import os
-import pickle
+import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -19,14 +19,17 @@ def update_eod_prices(data_path):
     with multiprocessing.Pool(4) as p:
         list_params = p.map(_process, symbols)
 
-    prices = {}
-    for params in list_params:
-        if params['previous_stock_price'] > MIN_STOCK_PRICE:
-            symbol = params.pop('symbol')
-            prices[symbol] = params
+    if not list_params:
+        return
 
-    with open(f'{data_path}/eod_prices.pickle', 'wb') as f:
-        pickle.dump(prices, f, pickle.HIGHEST_PROTOCOL)
+    field_names = list_params[0].keys()
+    with open(f'{data_path}/eod_prices.csv', 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+
+        writer.writeheader()
+        for params in list_params:
+            if params['previous_stock_price'] > MIN_STOCK_PRICE:
+                writer.writerow(params)
 
 
 def _process(symbol):
