@@ -4,8 +4,10 @@ import os
 import os.path
 import csv
 import collections
+import gc
+import time
 
-BATCH_SIZE = 100
+BATCH_SIZE = 500
 
 def main(data_path):
 
@@ -71,7 +73,10 @@ def main(data_path):
                     valueInputOption='RAW',
                     body=body).execute()
                 values = []
+                gc.collect()
+                # see usage limits: https://developers.google.com/sheets/api/limits
                 row_number += BATCH_SIZE
+                time.sleep(0.5)
         body = {'values': list(map(list, values))}
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
