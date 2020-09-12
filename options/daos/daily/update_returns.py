@@ -49,7 +49,7 @@ def _process(row):
         return None
 
     for j in range(0, 6):
-        row[f'return_after_{j+1}_div'] = util.days_to_next_event(row, i=j)
+        row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, i=j)
     row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
     row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
