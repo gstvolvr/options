@@ -38,14 +38,16 @@ def update_dividends(data_path):
                 symbol = row['symbol']
 
                 dividend = iex.get_next_dividend(symbol)
-                dividend['calculated'] = False
 
                 if dividend == {}:
-                    dividend['calculated'] = True
                     dividend = iex.get_last_dividend(symbol)
+                    dividend['symbol'] = symbol
+                    dividend['calculated'] = True
                     if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
                         continue
                     dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
+                else:
+                    dividend['calculated'] = False
 
                 if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
                     continue
