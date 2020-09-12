@@ -2,7 +2,6 @@ from dateutil.relativedelta import relativedelta
 from options import util
 import datetime
 import logging
-import multiprocessing
 import options.iex
 import os
 import csv
