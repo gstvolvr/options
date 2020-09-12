@@ -7,7 +7,7 @@ def _get(url, json=True):
         response = requests.get(url)
         data = response.json() if json else response.text
     except Exception as e:
-        logging.debug(f'ERROR: {response.text}')
+        logging.debug(f'ERROR: {e}')
         if json:
             data = {}
         else:

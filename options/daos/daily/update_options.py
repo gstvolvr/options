@@ -5,7 +5,6 @@ import logging
 import multiprocessing
 import options.iex
 import os
-import pickle
 import csv
 
 root = logging.getLogger()

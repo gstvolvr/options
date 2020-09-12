@@ -35,10 +35,11 @@ def update_returns(data_path):
                     if writer is None:
                         writer = csv.DictWriter(w, fieldnames=returns.keys())
                         writer.writeheader()
-                    writer.writerow(row)
+                    writer.writerow(returns)
 
 
-def _process(row):
+def _process(r):
+    row = r.copy()
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
     row['net'] = (float(row['previous_stock_price']) - float(row['mid']))
     row['premium'] = float(row['strike_price']) - float(row['net'])
@@ -49,7 +50,7 @@ def _process(row):
         return None
 
     for j in range(0, 6):
-        row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, i=j)
+        row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, n_dividends=j)
     row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
     row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
