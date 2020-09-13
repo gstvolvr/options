@@ -3,6 +3,7 @@ import datetime
 import logging
 import multiprocessing
 import options.iex
+import options.util
 import os
 import csv
 
@@ -34,33 +35,36 @@ def update_eod_prices(data_path):
 
 def _process(symbol):
     quote = iex.get_quote(symbol)
+    expected_date = options.util.get_previous_trading_date()
+
     if quote is None:
         logging.info(f'check {symbol}: quote is empty')
         return
-    if quote['latestSource'] == 'Close':
+
+    close_date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000) - relativedelta(days=1)
+    close_date = close_date.strftime('%Y-%m-%d')
+
+    # when we're looking for prices two business days ago
+    if quote['closeSource'] == 'official' and close_date == expected_date:
+        return {
+            'symbol': symbol,
+            'previous_stock_price': quote['previousClose'],
+            'previous_date': close_date}
+
+    # looking for last business days price
+    elif quote['latestSource'] == 'Close':
         if quote['closeTime'] is None:
-            latest_price = quote['latestPrice']
+            price = quote['latestPrice']
             date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
             logging.info(f'{symbol}: using latest source')
         else:
-            latest_price = quote['close']
+            price = quote['close']
             date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
         return {
             'symbol': symbol,
-            'latest_stock_price': None,
-            'latest_date': None,
-            'previous_stock_price': latest_price,
+            'previous_stock_price': price,
             'previous_date': date.strftime('%Y-%m-%d')}
 
-    elif quote['closeSource'] == 'official':
-        yesterday = datetime.datetime.today() - relativedelta(days=1)
-        return {
-            'symbol': symbol,
-            'latest_stock_price': None,
-            'latest_date': None,
-            'previous_stock_price': quote['previousClose'],
-            'previous_date': yesterday.strftime('%Y-%m-%d')}
-        
 
 
 if __name__ == '__main__':
