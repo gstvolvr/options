@@ -7,7 +7,7 @@ import gc
 import time
 
 BATCH_SIZE = 500
-SPREADSHEET_ID = os.getenv('QA_GOOGLE_SHEETS_ID')
+SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_ID')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
 
