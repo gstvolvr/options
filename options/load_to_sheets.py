@@ -1,6 +1,5 @@
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import os
 import os.path
 import csv
 import collections
@@ -8,12 +7,12 @@ import gc
 import time
 
 BATCH_SIZE = 500
+SPREADSHEET_ID = os.getenv('QA_GOOGLE_SHEETS_ID')
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
+
 
 def main(data_path):
-
-    SPREADSHEET_ID = os.getenv('QA_GOOGLE_SHEETS_ID')
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
 
     cols = collections.OrderedDict({
         'symbol': str,
