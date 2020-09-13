@@ -65,6 +65,10 @@ def main(data_path):
             values.append(ordered_result)
 
             if i % BATCH_SIZE == 0 and i != 0:
+                # order by: symbol, expiration_date, strike_price
+                values = sorted(values, key=lambda r: (r[0],
+                                                       r[6],
+                                                       r[5]))
                 body = {'values': list(map(list, values))}
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
