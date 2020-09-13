@@ -14,7 +14,7 @@ MIN_STOCK_PRICE = 7.5
 
 def update_eod_prices(data_path):
     with open(f'{data_path}/symbols.csv', 'r') as f:
-        symbols = [symbol.strip() for symbol in f.readlines()]
+        symbols = [symbol.strip() for symbol in f.readlines()][:10]
 
     with multiprocessing.Pool(4) as p:
         list_params = p.map(_process, symbols)
@@ -34,6 +34,8 @@ def update_eod_prices(data_path):
 
 def _process(symbol):
     quote = iex.get_quote(symbol)
+    today = datetime.datetime.today()
+    weekend = today.weekday() in [5, 6]
     if quote is None:
         logging.info(f'check {symbol}: quote is empty')
         return
@@ -42,6 +44,9 @@ def _process(symbol):
             latest_price = quote['latestPrice']
             date = datetime.datetime.strptime(quote['latestTime'], '%B %d, %Y')
             logging.info(f'{symbol}: using latest source')
+        elif weekend:
+            latest_price = quote['previousClose']
+            date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000) - relativedelta(days=1)
         else:
             latest_price = quote['close']
             date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
@@ -53,14 +58,14 @@ def _process(symbol):
             'previous_date': date.strftime('%Y-%m-%d')}
 
     elif quote['closeSource'] == 'official':
-        yesterday = datetime.datetime.today() - relativedelta(days=1)
+        yesterday = today - relativedelta(days=1)
         return {
             'symbol': symbol,
             'latest_stock_price': None,
             'latest_date': None,
             'previous_stock_price': quote['previousClose'],
             'previous_date': yesterday.strftime('%Y-%m-%d')}
-        
+
 
 
 if __name__ == '__main__':
