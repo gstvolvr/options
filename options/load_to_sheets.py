@@ -29,6 +29,7 @@ def main(data_path):
         'return_after_1_div': float,
         'return_after_2_div': float,
         'return_after_3_div': float,
+        'return_after_4_div': float,
         'bid': float,
         'mid': float,
         'ask': float,
