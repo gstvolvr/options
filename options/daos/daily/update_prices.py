@@ -14,7 +14,7 @@ MIN_STOCK_PRICE = 7.5
 
 def update_eod_prices(data_path):
     with open(f'{data_path}/symbols.csv', 'r') as f:
-        symbols = [symbol.strip() for symbol in f.readlines()][:10]
+        symbols = [symbol.strip() for symbol in f.readlines()]
 
     with multiprocessing.Pool(4) as p:
         list_params = p.map(_process, symbols)
