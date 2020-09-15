@@ -53,16 +53,12 @@ def _process(symbol):
             date = datetime.datetime.fromtimestamp(quote['closeTime'] / 1000)
         return {
             'symbol': symbol,
-            'latest_stock_price': None,
-            'latest_date': None,
             'previous_stock_price': latest_price,
             'previous_date': date.strftime('%Y-%m-%d')}
 
     elif quote['closeSource'] == 'official':
         return {
             'symbol': symbol,
-            'latest_stock_price': None,
-            'latest_date': None,
             'previous_stock_price': quote['previousClose'],
             'previous_date': options.util.get_previous_trading_date()}
 
