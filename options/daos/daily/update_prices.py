@@ -3,6 +3,7 @@ import datetime
 import logging
 import multiprocessing
 import options.iex
+import options.util
 import os
 import csv
 
@@ -58,13 +59,12 @@ def _process(symbol):
             'previous_date': date.strftime('%Y-%m-%d')}
 
     elif quote['closeSource'] == 'official':
-        yesterday = today - relativedelta(days=1)
         return {
             'symbol': symbol,
             'latest_stock_price': None,
             'latest_date': None,
             'previous_stock_price': quote['previousClose'],
-            'previous_date': yesterday.strftime('%Y-%m-%d')}
+            'previous_date': options.util.get_previous_trading_date()}
 
 
 
