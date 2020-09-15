@@ -72,7 +72,6 @@ def update_dividends(data_path):
                 writer.writerow(dividend_clean)
 
 
-
 if __name__ == '__main__':
     iex = options.iex.IEX()
     iex.token = os.getenv('IEX_TOKEN')
