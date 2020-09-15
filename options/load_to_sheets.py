@@ -42,7 +42,7 @@ def main(data_path):
 
     creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
     SHEET_NAME = 'data'
-    RANGE_NAME= f'{SHEET_NAME}!A{{row_number}}:R'
+    RANGE_NAME= f'{SHEET_NAME}!A{{row_number}}'
 
     service = build('sheets', 'v4', credentials=creds, cache_discovery=False)
     # clear current data in the spreadsheet
