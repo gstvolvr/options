@@ -49,7 +49,10 @@ def main(data_path):
     service.spreadsheets().values().clear(spreadsheetId=SPREADSHEET_ID, range=SHEET_NAME).execute()
     body = {'values': [list(cols.keys())]}
     service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME.format(row_number=1), valueInputOption='RAW', body=body).execute()
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGE_NAME.format(row_number=1),
+        valueInputOption='RAW',
+        body=body).execute()
 
     row_number = 2
     with open(f'{data_path}/returns.csv', 'r') as f:
@@ -81,6 +84,9 @@ def main(data_path):
                 # see usage limits: https://developers.google.com/sheets/api/limits
                 row_number += BATCH_SIZE
                 time.sleep(0.5)
+        values = sorted(values, key=lambda r: (r[0],
+                                               r[6],
+                                               r[5]))
         body = {'values': list(map(list, values))}
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
