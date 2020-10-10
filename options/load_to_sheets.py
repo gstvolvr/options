@@ -57,6 +57,10 @@ def main(data_path):
     row_number = 2
     with open(f'{data_path}/returns.csv', 'r') as f:
         returns = csv.DictReader(f)
+        returns = sorted(returns, key=lambda r: (r['industry'],
+                                                 r['symbol'],
+                                                 r['expiration_date'],
+                                                 r['strike_price']))
 
         for i, row in enumerate(returns):
             ordered_result = []
@@ -69,11 +73,6 @@ def main(data_path):
             values.append(ordered_result)
 
             if i % BATCH_SIZE == 0 and i != 0:
-                # order by: industry, symbol, expiration_date, strike_price
-                values = sorted(values, key=lambda r: (r[2],
-                                                       r[0],
-                                                       r[6],
-                                                       r[5]))
                 body = {'values': list(map(list, values))}
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
@@ -85,10 +84,6 @@ def main(data_path):
                 # see usage limits: https://developers.google.com/sheets/api/limits
                 row_number += BATCH_SIZE
                 time.sleep(0.5)
-        values = sorted(values, key=lambda r: (r[2],
-                                               r[0],
-                                               r[6],
-                                               r[5]))
         body = {'values': list(map(list, values))}
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
