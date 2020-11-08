@@ -69,6 +69,8 @@ def update_dividends(data_path):
                 if writer is None:
                     writer = csv.DictWriter(w, fieldnames=dividend_clean.keys())
                     writer.writeheader()
+                if 'dividend_date' in dividend_clean:
+                    dividend_clean.pop('dividend_date')
                 writer.writerow(dividend_clean)
 
 
