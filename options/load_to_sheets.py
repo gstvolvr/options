@@ -15,6 +15,7 @@ MAX_RETRIES = 3
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_ID')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
+SLEEP_SECONDS = 0.75
 
 
 def main(data_path):
@@ -102,7 +103,7 @@ def main(data_path):
                 gc.collect()
                 # see usage limits: https://developers.google.com/sheets/api/limits
                 row_number += BATCH_SIZE
-                time.sleep(.75)
+                time.sleep(SLEEP_SECONDS)
         values = sorted(values, key=lambda r: (r[0],
                                                r[6],
                                                r[5]))
