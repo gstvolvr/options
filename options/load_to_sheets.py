@@ -5,11 +5,17 @@ import csv
 import collections
 import gc
 import time
+import socket
+import logging
 
-BATCH_SIZE = 500
+socket.setdefaulttimeout(300)
+
+BATCH_SIZE = 250
+MAX_RETRIES = 3
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_ID')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
+SLEEP_SECONDS = 0.75
 
 
 def main(data_path):
@@ -74,16 +80,30 @@ def main(data_path):
                                                        r[6],
                                                        r[5]))
                 body = {'values': list(map(list, values))}
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGE_NAME.format(row_number=row_number),
-                    valueInputOption='RAW',
-                    body=body).execute()
+                try_n, try_again = 0, True
+                
+                while try_again:
+                    try:
+                        service.spreadsheets().values().update(
+                            spreadsheetId=SPREADSHEET_ID,
+                            range=RANGE_NAME.format(row_number=row_number),
+                            valueInputOption='RAW',
+                            body=body).execute()
+                        try_again = False
+                    except socket.timeout:
+                        logging.warn(f'socket timeout....retry # {try_n}')
+                        try_n += 1
+                        try_again = try_n < MAX_RETRIES 
+
+                        if try_n == MAX_RETRIES:
+                            raise Exception('Reached max retries')
+
+
                 values = []
                 gc.collect()
                 # see usage limits: https://developers.google.com/sheets/api/limits
                 row_number += BATCH_SIZE
-                time.sleep(0.5)
+                time.sleep(SLEEP_SECONDS)
         values = sorted(values, key=lambda r: (r[0],
                                                r[6],
                                                r[5]))
