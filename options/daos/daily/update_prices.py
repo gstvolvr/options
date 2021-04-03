@@ -14,7 +14,7 @@ MIN_STOCK_PRICE = 7.5
 
 
 def update_eod_prices(data_path):
-    with open(f'{data_path}/symbols.csv', 'r') as f:
+    with open(f'{data_path}/universe.csv', 'r') as f:
         symbols = [symbol.strip() for symbol in f.readlines()]
 
     with multiprocessing.Pool(4) as p:
@@ -29,7 +29,7 @@ def update_eod_prices(data_path):
             if writer is None:
                 writer = csv.DictWriter(f, fieldnames=params.keys())
                 writer.writeheader()
-            if params['previous_stock_price'] > MIN_STOCK_PRICE:
+            if params['previous_stock_price'] and params['previous_stock_price'] > MIN_STOCK_PRICE:
                 writer.writerow(params)
 
 
