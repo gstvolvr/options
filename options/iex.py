@@ -77,7 +77,10 @@ class IEX:
         return {}
 
     def get_next_dividend(self, symbol):
-        return _get(f'{self.base_url}/stable/stock/{symbol}/dividends/next?token={self.token}') or {}
+        data = _get(f'{self.base_url}/stable/stock/{symbol}/dividends/next?token={self.token}')
+        if data:
+            return data[0]
+        return {}
 
     def get_call_expiration_dates(self, symbol):
         return _get(f'{self.base_url}/stable/stock/{symbol}/options?token={self.token}')
