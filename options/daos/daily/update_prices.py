@@ -18,7 +18,7 @@ def update_eod_prices(data_path):
         symbols = [symbol.strip() for symbol in f.readlines()]
 
     with multiprocessing.Pool(4) as p:
-        list_params = p.map(_process, symbols)
+        list_params = p.map(iex.get_quote_from_last_trade_date, symbols)
 
     if not list_params:
         return
