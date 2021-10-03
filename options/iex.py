@@ -5,9 +5,12 @@ import requests
 REQUEST_DATE_FORMAT = '%Y%m%d'
 
 def _get(url, json=True):
+    print(url)
     try:
         response = requests.get(url)
+        print(response)
         data = response.json() if json else response.text
+        print(data)
     except Exception as e:
         logging.debug(f'ERROR: {e}')
         if json:
@@ -28,9 +31,9 @@ class IEX:
         self.base_url = 'https://cloud.iexapis.com'
         self.stats = {}
 
-    def get_last_trading_day(self):
-       data = _get(f'{self.base_url}/stable/ref-data/us/dates/trade/last?token={self.token}')
-       return data
+    def get_last_trading_day(self, offset=1):
+       data = _get(f'{self.base_url}/stable/ref-data/us/dates/trade/last/{offset}?token={self.token}').pop().get('date')
+       return _convert_str_format(data, '%Y-%m-%d')
 
     def get_company(self, symbol):
         data = _get(f'{self.base_url}/stable/stock/{symbol}/company?token={self.token}')
@@ -42,12 +45,14 @@ class IEX:
 
     def get_quote_from_last_trade_date(self, symbol):
         date_str = self.get_last_trading_day().pop().get('date')
-        date_str = _convert_str_format(date_str, '%Y-%m-%d')
         return self.get_quote_from_date(symbol, date_str)
 
     def get_quote_from_date(self, symbol, date):
         data = _get(f'{self.base_url}/stable/stock/{symbol}/chart/date/{date}?chartByDay=true&types=quote&token={self.token}')
-        return data.pop().get('close')
+        if data:
+          return data.pop().get('close')
+        else:
+          return None
 
     def get_price(self, symbol, date=None):
         if date is None:
