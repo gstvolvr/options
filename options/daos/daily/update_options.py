@@ -22,6 +22,7 @@ def update_eod_options(data_path):
     dates = iex.get_call_expiration_dates(__TEST_TICKER)
     results = iex.get_calls(__TEST_TICKER, dates[0])
 
+    # TODO: actually parse dates
     if results[0]['lastUpdated'].replace('-', '') != yesterday_fmt.replace('-', '') and not weekend:
         logging.info(results[0])
         raise Exception(f"Numbers haven't been updated to {yesterday_fmt}")
