@@ -19,7 +19,7 @@ def update_companies(data_path):
 
     writer = None
     with open(f'{data_path}/companies.csv', 'w') as w:
-        with open(f'{data_path}/symbols.csv', 'r') as f:
+        with open(f'{data_path}/universe.csv', 'r') as f:
             symbols = [symbol.strip() for symbol in f.readlines()]
             for i, symbol in enumerate(symbols):
                 if (i != 0) and (i % 100) == 0:

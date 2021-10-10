@@ -1,7 +1,6 @@
 from options import util
 import datetime
 import logging
-import multiprocessing
 import os
 import csv
 
