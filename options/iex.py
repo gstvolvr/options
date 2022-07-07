@@ -5,12 +5,9 @@ import requests
 REQUEST_DATE_FORMAT = '%Y%m%d'
 
 def _get(url, json=True):
-    print(url)
     try:
         response = requests.get(url)
-        print(response)
         data = response.json() if json else response.text
-        print(data)
     except Exception as e:
         logging.debug(f'ERROR: {e}')
         if json:

@@ -11,10 +11,6 @@ BATCH_SIZE = 1000
 
 def update_returns(data_path):
 
-    # load prices and dividends into memory
-    with open(f'{data_path}/eod_prices.csv', 'r') as f:
-        prices = {row['symbol']: row for row in csv.DictReader(f)}
-
     with open(f'{data_path}/dividends.csv', 'r') as f:
         dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
 
@@ -24,12 +20,20 @@ def update_returns(data_path):
             options_reader = csv.DictReader(f)
 
             for row in options_reader:
-                row.update(prices[row['symbol']])
                 row.update(dividends[row['symbol']])
                 row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
-                row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y%m%d')
+                row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
+
+                # only look roughly 18 months our
+                if row['expiration_date'] > datetime.datetime.today() + datetime.timedelta(days=30*20):
+                    continue
+
+                # we only want to consider "realistic" strike prices
+                if float(row['last']) * 0.50 > float(row['strike_price']):
+                    continue
 
                 returns = _process(row)
+
                 if returns is not None and returns['return_after_1_div'] is not None:
                     if writer is None:
                         writer = csv.DictWriter(w, fieldnames=returns.keys())
@@ -40,9 +44,9 @@ def update_returns(data_path):
 def _process(r):
     row = r.copy()
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
-    row['net'] = (float(row['previous_stock_price']) - float(row['mid']))
+    row['net'] = (float(row['last']) - float(row['mid']))
     row['premium'] = float(row['strike_price']) - float(row['net'])
-    row['insurance'] = (float(row['previous_stock_price']) - float(row['net'])) / float(row['previous_stock_price'])
+    row['insurance'] = (float(row['last']) - float(row['net'])) / float(row['last'])
 
     # ignore unrealistic premiums
     if row['premium'] < 0.05:

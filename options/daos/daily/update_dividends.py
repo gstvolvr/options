@@ -27,6 +27,7 @@ def update_dividends(data_path):
 
     today = datetime.datetime.strftime(datetime.date.today(), '%Y-%m-%d')
     writer = None
+    n_ignored_dividends = 0
     with open(f'{data_path}/dividends.csv', 'w') as w:
         with open(f'{data_path}/eod_prices.csv', 'r') as r:
             prices = csv.DictReader(r)
@@ -44,12 +45,14 @@ def update_dividends(data_path):
                     dividend['symbol'] = symbol
                     dividend['calculated'] = True
                     if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                        n_ignored_dividends += 1
                         continue
                     dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
                 else:
                     dividend['calculated'] = False
 
                 if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                    n_ignored_dividends += 1
                     continue
 
                 dividend_clean = {'dividend_' + to_snake(k): _clean(v) for k, v in dividend.items()}
@@ -58,12 +61,14 @@ def update_dividends(data_path):
                 if dividend_clean['dividend_flag'] != 'Cash' or \
                         dividend_clean['dividend_amount'] is None or \
                         dividend_clean['dividend_ex_date'] < today:
+                            n_ignored_dividends += 1
                             continue
                 # once we know `amount` is not None
                 dividend_clean['gross_annual_yield'] = float(dividend_clean['dividend_amount']) * \
                                                        (12. / util.FREQUENCY_MAPPING[dividend_clean['dividend_frequency']])
 
-                if dividend_clean['gross_annual_yield'] / float(row['previous_stock_price']) <= .02:
+                if dividend_clean['gross_annual_yield'] / float(row['previous_stock_price']) <= .005:
+                    n_ignored_dividends += 1
                     continue
 
                 if writer is None:
@@ -72,6 +77,8 @@ def update_dividends(data_path):
                 if 'dividend_date' in dividend_clean:
                     dividend_clean.pop('dividend_date')
                 writer.writerow(dividend_clean)
+
+    logging.info(f'Ignoring {n_ignored_dividends} dividends')
 
 
 if __name__ == '__main__':

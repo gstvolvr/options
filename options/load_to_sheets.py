@@ -24,7 +24,7 @@ def main(data_path):
         'symbol': str,
         'company_name': str,
         'industry': str,
-        'previous_stock_price': float,
+        'last': float,
         'net': float,
         'strike_price': float,
         'expiration_date': str,
@@ -39,7 +39,7 @@ def main(data_path):
         'bid': float,
         'mid': float,
         'ask': float,
-        'previous_date': str})
+        'quote_date': str})
 
     with open(f'{data_path}/companies.csv', 'r') as f:
         companies = {row['symbol']: row for row in csv.DictReader(f)}
@@ -68,7 +68,10 @@ def main(data_path):
             ordered_result = []
             for col, type_func in cols.items():
                 if col in ['company_name', 'industry']:
-                    ordered_result.append(companies[row['symbol']][col])
+                    if row['symbol'] in companies:
+                        ordered_result.append(companies[row['symbol']][col])
+                    else:
+                        ordered_result.append(None)
                 else:
                     value = type_func(row[col]) if row[col] else ''
                     ordered_result.append(value)

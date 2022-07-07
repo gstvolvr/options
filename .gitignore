@@ -1,6 +1,7 @@
 # things to ignore
 .DS_Store
 venv
+.venv
 data
 graph
 tokens
