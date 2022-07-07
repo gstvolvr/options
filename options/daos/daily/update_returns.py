@@ -29,7 +29,7 @@ def update_returns(data_path):
                     continue
 
                 # we only want to consider "realistic" strike prices
-                if float(row['close']) * 0.50 > float(row['strike_price']):
+                if float(row['last']) * 0.50 > float(row['strike_price']):
                     continue
 
                 returns = _process(row)
@@ -44,9 +44,9 @@ def update_returns(data_path):
 def _process(r):
     row = r.copy()
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
-    row['net'] = (float(row['close']) - float(row['mid']))
+    row['net'] = (float(row['last']) - float(row['mid']))
     row['premium'] = float(row['strike_price']) - float(row['net'])
-    row['insurance'] = (float(row['close']) - float(row['net'])) / float(row['close'])
+    row['insurance'] = (float(row['last']) - float(row['net'])) / float(row['last'])
 
     # ignore unrealistic premiums
     if row['premium'] < 0.05:

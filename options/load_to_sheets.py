@@ -24,7 +24,7 @@ def main(data_path):
         'symbol': str,
         'company_name': str,
         'industry': str,
-        'close': float,
+        'last': float,
         'net': float,
         'strike_price': float,
         'expiration_date': str,

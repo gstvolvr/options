@@ -59,7 +59,7 @@ def _process(item):
                 record['expiry'] = expiration_date
                 record['strike'] = strike
 
-                record.update({c: response['underlying'][c]  for c in ['symbol', 'close']})
+                record.update({c: response['underlying'][c]  for c in ['symbol', 'close', 'last']})
                 record['quote_date'] = datetime.datetime.fromtimestamp(int(response['underlying']['quoteTime'] / 1000))
                 record['quote_date'] = datetime.datetime.strftime(record['quote_date'], '%Y-%m-%d')
                 data.append(record)
