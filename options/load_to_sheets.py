@@ -9,7 +9,7 @@ import time
 
 socket.setdefaulttimeout(300)
 
-BATCH_SIZE = 250
+BATCH_SIZE = 500
 MAX_RETRIES = 3
 SLEEP_SECONDS = 0.75
 
@@ -55,7 +55,27 @@ UPDATE_TABLE = """
         %(mid)s,
         %(ask)s,
         %(quote_date)s
-    )
+    ) ON CONFLICT (symbol, strike_price, expiration_date) DO UPDATE
+    SET
+        symbol=EXCLUDED.symbol,
+        company_name=EXCLUDED.company_name,
+        industry=EXCLUDED.industry,
+        last=EXCLUDED.last,
+        net=EXCLUDED.net,
+        strike_price=EXCLUDED.strike_price,
+        expiration_date=EXCLUDED.expiration_date,
+        insurance=EXCLUDED.insurance,
+        premium=EXCLUDED.premium,
+        dividend_amount=EXCLUDED.dividend_amount,
+        dividend_ex_date=EXCLUDED.dividend_ex_date,
+        return_after_1_div=EXCLUDED.return_after_1_div,
+        return_after_2_div=EXCLUDED.return_after_2_div,
+        return_after_3_div=EXCLUDED.return_after_3_div,
+        return_after_4_div=EXCLUDED.return_after_4_div,
+        bid=EXCLUDED.bid,
+        mid=EXCLUDED.mid,
+        ask=EXCLUDED.ask,
+        quote_date=EXCLUDED.quote_date
 """
 
 
@@ -85,17 +105,14 @@ def main(data_path):
     with open(f'{data_path}/companies.csv', 'r') as f:
         companies = {row['symbol']: row for row in csv.DictReader(f)}
 
-    values = []
-
     with psycopg2.connect(database='postgres', user='postgres', host='10.60.176.3', port=5432) as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
             with open(f'{data_path}/returns.csv', 'r') as f:
                 returns = csv.DictReader(f)
 
-                rows = []
+                values = []
                 for i, row in enumerate(returns):
                     result = {}
-                    ordered_result = []
                     for col, type_func in cols.items():
                         if col in ['company_name', 'industry']:
                             if row['symbol'] in companies:
@@ -103,22 +120,15 @@ def main(data_path):
                             else:
                                 result[col] = None
                         else:
-                            result[col] = type_func(row[col]) if row[col] else ''
-                    values.append(ordered_result)
+                            result[col] = type_func(row[col]) if row[col] else None
+                    values.append(result)
 
                     if i % BATCH_SIZE == 0 and i != 0:
-                        # order by: symbol, expiration_date, strike_price
-                        values = sorted(values, key=lambda r: (r[0],
-                                                               r[6],
-                                                               r[5]))
+                        print(i)
                         cursor.executemany(UPDATE_TABLE, values)
+                        conn.commit()
                         values = []
                         gc.collect()
-                        # see usage limits: https://developers.google.com/sheets/api/limits
-                values = sorted(values, key=lambda r: (r[0],
-                                                       r[6],
-                                                       r[5]))
-
                 cursor.executemany(UPDATE_TABLE, values)
 
 if __name__ == '__main__':
