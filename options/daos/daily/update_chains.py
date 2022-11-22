@@ -9,7 +9,6 @@ from options import util
 root = logging.getLogger()
 root.setLevel(logging.INFO)
 
-__TEST_TICKER = 'BEN'
 
 def update_eod_options(data_path):
 
