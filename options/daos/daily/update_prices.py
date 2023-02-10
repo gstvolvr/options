@@ -35,7 +35,7 @@ def update_eod_prices(data_path):
 
 def _process(symbol):
     quote = client.get_quote(symbol)
-    time.sleep(0.1)
+    time.sleep(0.5)
     if 'error' in quote:
         raise Exception(quote['error'])
     if not quote or symbol not in quote:
