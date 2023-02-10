@@ -30,9 +30,10 @@ def update_uptes(data_path):
             symbol = symbol.strip()
             quote = _process(symbol)
 
+            # yield is in `%` form
             if quote and quote['previous_stock_price'] and \
                     quote['previous_stock_price'] > MIN_STOCK_PRICE and \
-                    quote['dividend_annual_yield'] > .005:
+                    quote['dividend_annual_yield'] > .5:
 
                 div_date = datetime.datetime.fromisoformat(quote['dividend_ex_date']).date()
 
