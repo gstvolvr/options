@@ -39,7 +39,7 @@ def update_eod_prices(data_path):
 def _process(symbol):
     quote = client.get_quote(symbol)
     time.sleep(0.001)
-    if quote is None:
+    if not quote:
         logging.info(f'check {symbol}: quote is empty')
         return
     return {
