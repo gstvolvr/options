@@ -1,7 +1,5 @@
-from functools import partial
 import csv
 import logging
-import multiprocessing
 import options.td_ameritrade
 import options.util
 import os
@@ -37,7 +35,9 @@ def update_eod_prices(data_path):
 
 def _process(symbol):
     quote = client.get_quote(symbol)
-    time.sleep(0.01)
+    time.sleep(0.1)
+    if 'error' in quote:
+        raise Exception(quote['error'])
     if not quote or symbol not in quote:
         logging.info(f'check {symbol}: quote is empty')
         return
