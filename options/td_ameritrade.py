@@ -2,7 +2,9 @@ from datetime import datetime
 import logging
 import requests
 
+
 REQUEST_DATE_FORMAT = '%Y%m%d'
+
 
 def _get(url, json=True):
     try:
@@ -20,6 +22,7 @@ def _get(url, json=True):
 def _convert_str_format(date, current_date_format):
     return datetime.strptime(date, current_date_format).strftime(REQUEST_DATE_FORMAT)
 
+
 class TDAmeritrade:
     def __init__(self):
         self.token = None
@@ -27,3 +30,6 @@ class TDAmeritrade:
 
     def get_chains(self, ticker: str, from_date: str):
         return _get(f'{self.base_url}/marketdata/chains?apikey={self.token}&symbol={ticker}&contractType=CALL&includeQuotes=TRUE&optionType=S&fromDate={from_date}')
+
+    def get_quote(self, ticker: str):
+        return _get(f'{self.base_url}/marketdata/quotes?apikey={self.token}&symbol={ticker}')

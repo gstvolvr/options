@@ -24,7 +24,7 @@ def update_returns(data_path):
                 row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
                 row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
 
-                # only look roughly 18 months our
+                # only look roughly 18 months out
                 if row['expiration_date'] > datetime.datetime.today() + datetime.timedelta(days=30*20):
                     continue
 

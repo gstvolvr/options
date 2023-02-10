@@ -61,8 +61,8 @@ def update_dividends(data_path):
                 if dividend_clean['dividend_flag'] != 'Cash' or \
                         dividend_clean['dividend_amount'] is None or \
                         dividend_clean['dividend_ex_date'] < today:
-                            n_ignored_dividends += 1
-                            continue
+                    n_ignored_dividends += 1
+                    continue
                 # once we know `amount` is not None
                 dividend_clean['gross_annual_yield'] = float(dividend_clean['dividend_amount']) * \
                                                        (12. / util.FREQUENCY_MAPPING[dividend_clean['dividend_frequency']])

@@ -66,7 +66,6 @@ def _process(item):
     return data
 
 
-
 if __name__ == '__main__':
     client = options.td_ameritrade.TDAmeritrade()
     client.token = os.getenv('TD_AMERITRADE_TOKEN')
