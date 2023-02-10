@@ -1,8 +1,9 @@
 from options import util
+import csv
 import datetime
+import json
 import logging
 import os
-import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -11,8 +12,8 @@ BATCH_SIZE = 1000
 
 def update_returns(data_path):
 
-    with open(f'{data_path}/dividends.csv', 'r') as f:
-        dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
+    with open(f'{data_path}/quotes.json', 'r') as f:
+        quotes = json.load(f)
 
     writer = None
     with open(f'{data_path}/returns.csv', 'w') as w:
@@ -20,7 +21,7 @@ def update_returns(data_path):
             options_reader = csv.DictReader(f)
 
             for row in options_reader:
-                row.update(dividends[row['symbol']])
+                row.update(quotes[row['symbol']])
                 row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
                 row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
 

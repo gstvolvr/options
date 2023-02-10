@@ -22,8 +22,8 @@ def update_dividends(data_path):
         return value
 
     def _add_months(date, months=3):
-        new_date = datetime.datetime.strptime(date, '%Y-%m-%d') + relativedelta(months=months)
-        return datetime.datetime.strftime(new_date, '%Y-%m-%d')
+        new_date = datetime.datetime.strptime(date, '%y-%m-%d') + relativedelta(months=months)
+        return datetime.datetime.strftime(new_date, '%y-%m-%d')
 
     today = datetime.datetime.strftime(datetime.date.today(), '%Y-%m-%d')
     writer = None
@@ -39,6 +39,7 @@ def update_dividends(data_path):
                 symbol = row['symbol']
 
                 dividend = iex.get_next_dividend(symbol)
+                print(dividend)
 
                 if dividend == {}:
                     dividend = iex.get_last_dividend(symbol)
