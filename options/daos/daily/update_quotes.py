@@ -38,14 +38,13 @@ def update_uptes(data_path):
 
                 # they probably haven't announced the next dividend, we should make an educated guess
                 if div_date < today:
-                    # quotes[symbol] = quote
                     quote['dividend_calculated'] = True
                     quote['dividend_ex_date'] = _add_months(div_date)
                 else:
                     quote['dividend_calculated'] = False
                     quote['dividend_ex_date'] = datetime.datetime.strftime(div_date, '%Y-%m-%d')
 
-            quotes[symbol] = quote
+                quotes[symbol] = quote
     if not quotes:
         return
 
