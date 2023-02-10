@@ -30,7 +30,7 @@ def main(data_path):
         'expiration_date': str,
         'insurance': float,
         'premium': float,
-        'dividend_amount': float,
+        'dividend_quarterly_amount': float,
         'dividend_ex_date': str,
         'return_after_1_div': float,
         'return_after_2_div': float,
