@@ -1,12 +1,11 @@
 from dateutil.relativedelta import relativedelta
-import csv
+from typing import Optional
 import datetime
 import json
 import logging
 import options.td_ameritrade
 import options.util
 import os
-import time
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -14,12 +13,12 @@ root.setLevel(logging.INFO)
 MIN_STOCK_PRICE = 7.5
 
 
-def _add_months(date: datetime.date, months=3):
+def _add_months(date: datetime.date, months=3) -> str:
     new_date = date + relativedelta(months=months)
     return datetime.datetime.strftime(new_date, '%Y-%m-%d')
 
 
-def update_uptes(data_path):
+def update_quotes(data_path: str) -> None:
     """
     TD Ameritrade has a restrictive API limit. Can't parallelize.
     """
@@ -53,7 +52,7 @@ def update_uptes(data_path):
         json.dump(quotes, f, indent=4, sort_keys=True)
 
 
-def _process(symbol):
+def _process(symbol: str) -> Optional[dict]:
     quote = client.get_quote(symbol)
     if 'error' in quote:
         raise Exception(quote['error'])
@@ -73,4 +72,4 @@ def _process(symbol):
 if __name__ == '__main__':
     client = options.td_ameritrade.TDAmeritrade()
     client.token = os.getenv('TD_AMERITRADE_TOKEN')
-    update_uptes(data_path=os.getenv('DATA_PATH'))
+    update_quotes(data_path=os.getenv('DATA_PATH'))

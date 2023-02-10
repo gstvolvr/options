@@ -1,4 +1,5 @@
 from options import util
+from typing import Optional
 import csv
 import datetime
 import json
@@ -42,7 +43,7 @@ def update_returns(data_path):
                     writer.writerow(returns)
 
 
-def _process(r):
+def _process(r: dict) -> Optional[dict]:
     row = r.copy()
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
     row['net'] = (float(row['last']) - float(row['mid']))
