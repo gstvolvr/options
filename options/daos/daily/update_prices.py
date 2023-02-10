@@ -14,12 +14,11 @@ MIN_STOCK_PRICE = 7.5
 
 
 def update_eod_prices(data_path):
+    """
+    TD Ameritrade has a restrictive API limit. Can't parallelize.
+    """
     with open(f'{data_path}/universe.csv', 'r') as f:
-        symbols = [symbol.strip() for symbol in f.readlines()]
-
-    func = partial(_process)
-    with multiprocessing.Pool(4) as p:
-        list_params = p.map(func, symbols)
+        list_params = (_process(symbol.strip()) for symbol in f.readlines())
     if not list_params:
         return
 
@@ -38,7 +37,7 @@ def update_eod_prices(data_path):
 
 def _process(symbol):
     quote = client.get_quote(symbol)
-    time.sleep(0.001)
+    time.sleep(0.01)
     if not quote:
         logging.info(f'check {symbol}: quote is empty')
         return
