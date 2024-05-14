@@ -1,0 +1,1 @@
+// dividend_amount,dividend_currency,dividend_declared_date,dividend_description,dividend_ex_date,dividend_flag,dividend_frequency,dividend_payment_date,dividend_record_date,dividend_refid,dividend_symbol,dividend_id,dividend_key,dividend_subkey,dividend_date,dividend_updated,dividend_calculated,gross_annual_yield
