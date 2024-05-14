@@ -16,3 +16,5 @@ conf/env.sh
 *pickle*
 *.csv
 .idea
+options-rs/target
+options-rs/Cargo.lock
