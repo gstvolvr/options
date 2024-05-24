@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Company {
-		pub symbol: String,
+	  pub symbol: String,
 	  pub company_name: String,
 	  pub exchange: String,
 	  pub industry: String,
