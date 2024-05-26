@@ -5,12 +5,9 @@ pub mod models;
 pub mod util;
 use models::dividend::Dividend;
 use models::options::Options;
-use models::returns::Returns;
 use util::calculate_return_after_dividends;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::BufReader;
-use std::error::Error;
 
 
 fn main() {
