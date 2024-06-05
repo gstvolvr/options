@@ -9,9 +9,13 @@ use util::calculate_return_after_dividends;
 use std::collections::HashMap;
 use std::fs::File;
 
+pub mod api;
+use api::schwab::call_api;
+
 
 fn main() {
-    update_returns();
+    // update_returns();
+    call_api();
 }
 
 fn _process(record: &Options, dividend: &Dividend) -> Option<Options> {
