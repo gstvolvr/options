@@ -12,14 +12,4 @@ pub struct Company {
 	  pub security_name: String,
 	  pub issue_type: String,
 	  pub sector: String,
-	  primary_sic_code: String,
-	  employees: String,
-	  tags: String,
-	  address: String,
-	  address2: String,
-	  state: String,
-	  city: String,
-	  zip: String,
-	  country: String,
-	  phone: String
 }
