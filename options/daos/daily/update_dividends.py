@@ -1,8 +1,8 @@
 from dateutil.relativedelta import relativedelta
-from options import util
+from options import util, polygon_util
 import datetime
 import logging
-import options.iex
+import polygon
 import os
 import re
 import csv
@@ -36,53 +36,45 @@ def update_dividends(data_path):
                 if (i != 0) and (i % 100) == 0:
                     logging.info(f'processed: {i}')
 
-                symbol = row['symbol']
+                ticker = row['ticker']
+                logging.debug(f'Updating dividends for: {ticker}')
+                dividend = polygon_util.get_next_dividend(client, ticker)
 
-                dividend = iex.get_next_dividend(symbol)
-
-                if dividend == {}:
-                    dividend = iex.get_last_dividend(symbol)
-                    dividend['symbol'] = symbol
+                if dividend is None:
+                    dividend = polygon_util.get_last_dividend(client, ticker)
+                    dividend = dividend.__dict__
                     dividend['calculated'] = True
-                    if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                    if dividend['frequency'] not in util.FREQUENCY_MAPPING:
                         n_ignored_dividends += 1
                         continue
-                    dividend['exDate'] = _add_months(dividend['exDate'], util.FREQUENCY_MAPPING[dividend['frequency']])
+                    dividend['ex_dividend_date'] = _add_months(dividend['ex_dividend_date'], dividend['frequency'])
                 else:
+                    dividend = dividend.__dict__
                     dividend['calculated'] = False
 
-                if 'frequency' not in dividend or dividend['frequency'] not in util.FREQUENCY_MAPPING:
+                if not dividend['frequency']:
                     n_ignored_dividends += 1
                     continue
 
-                dividend_clean = {'dividend_' + to_snake(k): _clean(v) for k, v in dividend.items()}
-
                 # ignore non-cash dividends
-                if dividend_clean['dividend_flag'] != 'Cash' or \
-                        dividend_clean['dividend_amount'] is None or \
-                        dividend_clean['dividend_ex_date'] < today:
-                            n_ignored_dividends += 1
-                            continue
+                if dividend['cash_amount'] is None or \
+                   dividend['ex_dividend_date'] < today:
+                        n_ignored_dividends += 1
+                        continue
                 # once we know `amount` is not None
-                dividend_clean['gross_annual_yield'] = float(dividend_clean['dividend_amount']) * \
-                                                       (12. / util.FREQUENCY_MAPPING[dividend_clean['dividend_frequency']])
-
-                if dividend_clean['gross_annual_yield'] / float(row['previous_stock_price']) <= .005:
+                dividend['gross_annual_yield'] = float(dividend['cash_amount']) * (12. / dividend['frequency'])
+                if dividend['gross_annual_yield'] / float(row['previous_stock_price']) <= .005:
                     n_ignored_dividends += 1
                     continue
 
                 if writer is None:
-                    writer = csv.DictWriter(w, fieldnames=dividend_clean.keys())
+                    writer = csv.DictWriter(w, fieldnames=dividend.keys())
                     writer.writeheader()
-                if 'dividend_date' in dividend_clean:
-                    dividend_clean.pop('dividend_date')
-                writer.writerow(dividend_clean)
+                writer.writerow(dividend)
 
     logging.info(f'Ignoring {n_ignored_dividends} dividends')
 
 
 if __name__ == '__main__':
-    iex = options.iex.IEX()
-    iex.token = os.getenv('IEX_TOKEN')
-
+    client = polygon.RESTClient()
     update_dividends(data_path=os.getenv('DATA_PATH'))
