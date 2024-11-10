@@ -1,9 +1,11 @@
+from typing import Optional
+
 from dateutil.relativedelta import relativedelta
 import datetime
 import logging
 import multiprocessing
-import options.iex
-import options.util
+import polygon
+from options import polygon_util
 import os
 import csv
 from functools import partial
@@ -19,13 +21,7 @@ def update_eod_prices(data_path):
     with open(f'{data_path}/universe.csv', 'r') as f:
         symbols = [symbol.strip() for symbol in f.readlines()]
 
-    today = datetime.datetime.today()
-    weekend = today.weekday() in [5, 6]
-    # TODO: handle offset on holidays
-    offset = 2 if weekend else 1
-    trading_date = iex.get_last_trading_day(offset=offset)
-    print(trading_date)
-
+    trading_date = polygon_util.get_last_trading_date(client)
     func = partial(_process, date=trading_date)
     with multiprocessing.Pool(4) as p:
         list_params = p.map(func, symbols)
@@ -44,19 +40,22 @@ def update_eod_prices(data_path):
             if params['previous_stock_price'] and params['previous_stock_price'] > MIN_STOCK_PRICE:
                 writer.writerow(params)
 
-def _process(symbol, date):
-  quote = iex.get_quote_from_date(symbol, date)
-  time.sleep(0.001)
-  if quote is None:
-      logging.info(f'check {symbol}: quote is empty')
-      return
-  return {
-      'symbol': symbol,
-      'previous_stock_price': quote,
-      'previous_date': date}
+def _process(symbol: str, date: str) -> Optional[dict]:
+    _client = polygon_util.LazyPolygonClient.get_instance()
+    quotes = _client.get_aggs(ticker=symbol, multiplier=1, timespan="minute", from_=date, to=date)
+    time.sleep(0.001)
+    for quote in quotes:
+        if quote is None:
+            logging.info(f'check {symbol}: quote is empty')
+            return
+        return {
+            'symbol': symbol,
+            'previous_stock_price': quote.close,
+            'previous_date': date
+        }
 
 
 if __name__ == '__main__':
-    iex = options.iex.IEX()
-    iex.token = os.getenv('IEX_TOKEN')
+    global client
+    client = polygon.RESTClient()
     update_eod_prices(data_path=os.getenv('DATA_PATH'))
