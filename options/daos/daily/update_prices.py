@@ -33,23 +33,23 @@ def update_eod_prices(data_path):
 
     writer = None
     with open(f'{data_path}/eod_prices.csv', 'w') as f:
-        for params in sorted(filtered_list_params, key=lambda x: x['symbol']):
+        for params in sorted(filtered_list_params, key=lambda x: x['ticker']):
             if writer is None:
                 writer = csv.DictWriter(f, fieldnames=params.keys())
                 writer.writeheader()
             if params['previous_stock_price'] and params['previous_stock_price'] > MIN_STOCK_PRICE:
                 writer.writerow(params)
 
-def _process(symbol: str, date: str) -> Optional[dict]:
+def _process(ticker: str, date: str) -> Optional[dict]:
     _client = polygon_util.LazyPolygonClient.get_instance()
-    quotes = _client.get_aggs(ticker=symbol, multiplier=1, timespan="minute", from_=date, to=date)
+    quotes = _client.get_aggs(ticker=ticker, multiplier=1, timespan="minute", from_=date, to=date)
     time.sleep(0.001)
     for quote in quotes:
         if quote is None:
-            logging.info(f'check {symbol}: quote is empty')
+            logging.info(f'check {ticker}: quote is empty')
             return
         return {
-            'symbol': symbol,
+            'ticker': ticker,
             'previous_stock_price': quote.close,
             'previous_date': date
         }
