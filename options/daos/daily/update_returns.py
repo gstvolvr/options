@@ -12,7 +12,7 @@ BATCH_SIZE = 1000
 def update_returns(data_path):
 
     with open(f'{data_path}/dividends.csv', 'r') as f:
-        dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
+        dividends = {row['ticker']: row for row in csv.DictReader(f)}
 
     writer = None
     with open(f'{data_path}/returns.csv', 'w') as w:
@@ -20,16 +20,17 @@ def update_returns(data_path):
             options_reader = csv.DictReader(f)
 
             for row in options_reader:
-                row.update(dividends[row['symbol']])
-                row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
-                row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
+                row.update(dividends[row['ticker']])
+                row['ex_dividend_date'] = datetime.datetime.strptime(row['ex_dividend_date'], '%Y-%m-%d')
+                row['expiration_date'] = datetime.datetime.strptime(row['expiration_date'], '%Y-%m-%d')
+                # row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
 
                 # only look roughly 18 months our
                 if row['expiration_date'] > datetime.datetime.today() + datetime.timedelta(days=30*20):
                     continue
 
                 # we only want to consider "realistic" strike prices
-                if float(row['last']) * 0.50 > float(row['strike_price']):
+                if float(row['close']) * 0.50 > float(row['strike']):
                     continue
 
                 returns = _process(row)
@@ -43,9 +44,10 @@ def update_returns(data_path):
 
 def _process(r):
     row = r.copy()
+    print(row)
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
     row['net'] = (float(row['last']) - float(row['mid']))
-    row['premium'] = float(row['strike_price']) - float(row['net'])
+    row['premium'] = float(row['strike']) - float(row['net'])
     row['insurance'] = (float(row['last']) - float(row['net'])) / float(row['last'])
 
     # ignore unrealistic premiums
@@ -54,7 +56,7 @@ def _process(r):
 
     for j in range(0, 6):
         row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, n_dividends=j)
-    row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
+    row['ex_dividend_date'] = datetime.datetime.strftime(row['ex_dividend_date'], '%Y-%m-%d')
     row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
 

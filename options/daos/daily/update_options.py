@@ -1,5 +1,6 @@
 from dateutil.relativedelta import relativedelta
 from options import util
+import polygon
 import datetime
 import logging
 import options.iex
@@ -46,7 +47,7 @@ def update_eod_options(data_path):
                     if not date_params['is_adjusted'] and date_params['ask'] != 0:
                         writer.writerow(date_params)
                     else:
-                        n_faulty_date_params += 1 
+                        n_faulty_date_params += 1
 
     logging.info(f'number of empty outputs: {n_empty_params}')
     logging.info(f'number of faulty options: {n_faulty_date_params}')
@@ -54,7 +55,6 @@ def update_eod_options(data_path):
 
 def _process(item):
     min_contract_date = item['dividend_ex_date'][:5].replace('-', '')
-
     dates = iex.get_call_expiration_dates(item['dividend_symbol'])
     params = []
 
@@ -67,6 +67,5 @@ def _process(item):
 
 
 if __name__ == '__main__':
-    iex = options.iex.IEX()
-    iex.token = os.getenv('IEX_TOKEN')
+    client = polygon.RESTClient()
     update_eod_options(data_path=os.getenv('DATA_PATH'))

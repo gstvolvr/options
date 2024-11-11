@@ -1,14 +1,10 @@
-from dateutil.relativedelta import relativedelta
 from functools import partial
-from options import polygon_util
 from typing import Optional
 import csv
-import datetime
 import logging
 import multiprocessing
 import os
 import options.clients.polygon
-import polygon
 import time
 
 root = logging.getLogger()

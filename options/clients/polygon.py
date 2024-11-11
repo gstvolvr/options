@@ -68,7 +68,7 @@ class Polygon(options.clients.client.Client):
             record = {
                 'ticker': ticker,
                 'strike': snapshot.details.strike_price,
-                'expiry': snapshot.details.expiration_date,
+                'expiration_date': snapshot.details.expiration_date,
                 'option_ticker': snapshot.details.ticker,
                 'quote_date': snapshot.day.last_updated,
                 'close': snapshot.day.close

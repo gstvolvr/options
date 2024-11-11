@@ -23,12 +23,7 @@ def update_eod_options(data_path):
             for dividend in dividends_reader:
                 count += 1
                 logging.info(f'getting options chain for: {dividend["ticker"]}')
-                # try:
                 symbol_params = _process(dividend)
-                # except Exception as e:
-                #     logging.info(e)
-                #     continue
-
 
                 if not symbol_params:
                     n_empty_params += 1
@@ -54,7 +49,7 @@ def _process(item):
     data = []
 
     for contract in response:
-        if contract['expiry'] < min_contract_date:
+        if contract['expiration_date'] < min_contract_date:
             data.append(contract)
     return data
 
