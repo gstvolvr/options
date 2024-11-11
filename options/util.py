@@ -4,6 +4,8 @@ import re
 
 FREQUENCY_MAPPING = {'quarterly': 3, 'semi-annual': 6, 'annual': 12, 'monthly': 1, 'bimonthly': 2}
 
+MONTHS_IN_QUARTER = 3
+
 
 def to_snake(name):
     return re.sub(f'(?<!^)(?=[A-Z])', '_', name).lower()
@@ -15,8 +17,7 @@ def days_to_first(row):
 
 
 def calculate_return_after_dividends(row, n_dividends):
-    months_in = FREQUENCY_MAPPING[row['dividend_frequency']]
-    next_dividend_date = row['dividend_ex_date'] + relativedelta(months=months_in * (n_dividends+1))
+    next_dividend_date = row['dividend_ex_date'] + relativedelta(months=MONTHS_IN_QUARTER * (n_dividends+1))
 
     # if its Sunday, choose Monday
     if next_dividend_date.weekday() == 6:
@@ -29,9 +30,9 @@ def calculate_return_after_dividends(row, n_dividends):
     next_event_date = min(row['expiration_date'], next_dividend_date)
     days_to_next_event = (next_event_date - datetime.datetime.today()).days + 2
 
-    if days_to_next_event <= 0 or (next_dividend_date - row['expiration_date']).days >= months_in*30:
+    if days_to_next_event <= 0 or (next_dividend_date - row['expiration_date']).days >= MONTHS_IN_QUARTER*30:
         return
-    return ((float(row['dividend_amount']) * (n_dividends+1) + float(row['premium'])) / float(row['net'])) / days_to_next_event * 365
+    return ((float(row['dividend_quarterly_amount']) * (n_dividends+1) + float(row['premium'])) / float(row['net'])) / days_to_next_event * 365
 
 
 def get_datetime_today():
@@ -57,4 +58,3 @@ def get_previous_trading_date():
     previous_trading_day = today - relativedelta(days=delta)
     previous_trading_day_fmt = datetime.datetime.strftime(previous_trading_day, '%Y-%m-%d')
     return previous_trading_day_fmt
-
