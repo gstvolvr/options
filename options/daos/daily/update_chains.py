@@ -1,10 +1,11 @@
-import logging
-import options.td_ameritrade
-import os
-import csv
-import time
-import datetime
+from options import polygon_util
 from options import util
+import csv
+import datetime
+import logging
+import os
+import options.clients.polygon
+import time
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -21,11 +22,12 @@ def update_eod_options(data_path):
 
             for dividend in dividends_reader:
                 count += 1
-                logging.info(f'getting options chain for: {dividend["dividend_symbol"]}')
-                try:
-                    symbol_params = _process(dividend)
-                except Exception as e:
-                    continue
+                logging.info(f'getting options chain for: {dividend["ticker"]}')
+                # try:
+                symbol_params = _process(dividend)
+                # except Exception as e:
+                #     logging.info(e)
+                #     continue
 
 
                 if not symbol_params:
@@ -35,7 +37,7 @@ def update_eod_options(data_path):
                     if writer is None:
                         writer = csv.DictWriter(w, fieldnames=date_params.keys())
                         writer.writeheader()
-                    if date_params['ask'] != 0:
+                    if date_params['close'] != 0:
                         writer.writerow(date_params)
                     else:
                         n_faulty_date_params += 1
@@ -46,28 +48,18 @@ def update_eod_options(data_path):
 
 
 def _process(item):
-    min_contract_date = item['dividend_ex_date']
-    response = client.get_chains(ticker=item['dividend_symbol'], from_date=min_contract_date)
+    _client = options.clients.polygon.LazyClient.get_instance()
+    min_contract_date = item['ex_dividend_date']
+    response = _client.get_chains(ticker=item['ticker'])
     data = []
 
-    for expiration_date in response.get('callExpDateMap', []):
-        for strike in response['callExpDateMap'].get(expiration_date, []):
-            for element in response['callExpDateMap'][expiration_date].get(strike, []):
-                record = {util.to_snake(k): v for k,v in element.items()}
-                record['option_symbol'] = record['symbol']
-                record['expiry'] = expiration_date
-                record['strike'] = strike
-
-                record.update({c: response['underlying'][c]  for c in ['symbol', 'close', 'last']})
-                record['quote_date'] = datetime.datetime.fromtimestamp(int(response['underlying']['quoteTime'] / 1000))
-                record['quote_date'] = datetime.datetime.strftime(record['quote_date'], '%Y-%m-%d')
-                data.append(record)
-
+    for contract in response:
+        if contract['expiry'] < min_contract_date:
+            data.append(contract)
     return data
 
 
 
 if __name__ == '__main__':
-    client = options.td_ameritrade.TDAmeritrade()
-    client.token = os.getenv('TD_AMERITRADE_TOKEN')
+    client = options.clients.polygon.Polygon()
     update_eod_options(data_path=os.getenv('DATA_PATH'))
