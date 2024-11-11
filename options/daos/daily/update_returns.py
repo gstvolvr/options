@@ -1,8 +1,10 @@
 from options import util
+from typing import Optional
+import csv
 import datetime
+import json
 import logging
 import os
-import csv
 
 root = logging.getLogger()
 root.setLevel(logging.INFO)
@@ -11,8 +13,8 @@ BATCH_SIZE = 1000
 
 def update_returns(data_path):
 
-    with open(f'{data_path}/dividends.csv', 'r') as f:
-        dividends = {row['dividend_symbol']: row for row in csv.DictReader(f)}
+    with open(f'{data_path}/quotes.json', 'r') as f:
+        quotes = json.load(f)
 
     writer = None
     with open(f'{data_path}/returns.csv', 'w') as w:
@@ -20,11 +22,11 @@ def update_returns(data_path):
             options_reader = csv.DictReader(f)
 
             for row in options_reader:
-                row.update(dividends[row['symbol']])
+                row.update(quotes[row['symbol']])
                 row['dividend_ex_date'] = datetime.datetime.strptime(row['dividend_ex_date'], '%Y-%m-%d')
                 row['expiration_date'] = datetime.datetime.fromtimestamp(int(row['expiration_date']) / 1000)
 
-                # only look roughly 18 months our
+                # only look roughly 18 months out
                 if row['expiration_date'] > datetime.datetime.today() + datetime.timedelta(days=30*20):
                     continue
 
@@ -41,7 +43,7 @@ def update_returns(data_path):
                     writer.writerow(returns)
 
 
-def _process(r):
+def _process(r: dict) -> Optional[dict]:
     row = r.copy()
     row['mid'] = (float(row['bid']) + float(row['ask'])) / 2
     row['net'] = (float(row['last']) - float(row['mid']))
@@ -54,6 +56,8 @@ def _process(r):
 
     for j in range(0, 6):
         row[f'return_after_{j+1}_div'] = util.calculate_return_after_dividends(row, n_dividends=j)
+        if row[f'return_after_{j+1}_div'] is not None:
+            row['return_after_last_div'] = row[f'return_after_{j+1}_div']
     row['dividend_ex_date'] = datetime.datetime.strftime(row['dividend_ex_date'], '%Y-%m-%d')
     row['expiration_date'] = datetime.datetime.strftime(row['expiration_date'], '%Y-%m-%d')
     return row
