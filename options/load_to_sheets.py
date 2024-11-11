@@ -41,7 +41,14 @@ def main(data_path):
         'bid': float,
         'mid': float,
         'ask': float,
-        'quote_date': str})
+        'quote_date': str,
+        'volatility': str,
+        'delta': str,
+        'gamma': str,
+        'theta': str,
+        'vega': str,
+        'rho': str,
+        'time_value': str})
 
     with open(f'{data_path}/companies.csv', 'r') as f:
         companies = {row['symbol']: row for row in csv.DictReader(f)}
