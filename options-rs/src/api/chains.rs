@@ -1,3 +1,4 @@
+#[derive(serde::Deserialize, Debug)]
 pub struct ChainsApiResponse {
     pub symbol: String,
     pub status: String,
@@ -14,6 +15,7 @@ pub struct ChainsApiResponse {
     pub put_exp_date_map: PutExpDateMap,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct Underlying {
     pub ask: f64,
     pub ask_size: i64,
@@ -40,12 +42,14 @@ pub struct Underlying {
     pub trade_time: i64,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct CallExpDateMap {
     pub additional_prop1: AdditionalProp,
     pub additional_prop2: AdditionalProp,
     pub additional_prop3: AdditionalProp,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct PutExpDateMap {
     pub additional_prop1: AdditionalProp,
     pub additional_prop2: AdditionalProp,
@@ -53,6 +57,7 @@ pub struct PutExpDateMap {
 }
 
 
+#[derive(serde::Deserialize, Debug)]
 pub struct AdditionalProp {
     pub put_call: String,
     pub symbol: String,
@@ -105,6 +110,7 @@ pub struct AdditionalProp {
     pub option_root: String,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct OptionDeliverables {
     pub symbol: String,
     pub asset_type: String,

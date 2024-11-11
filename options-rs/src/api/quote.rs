@@ -1,5 +1,6 @@
 // struct based on the following json structure
-struct QuoteApiResponse {
+#[derive(serde::Deserialize, Debug)]
+pub(crate) struct QuoteApiResponse {
     pub asset_main_type: String,
     pub symbol: String,
     pub quote_type: String,
@@ -9,6 +10,7 @@ struct QuoteApiResponse {
     pub quote: Quote,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct Reference {
     pub cusip: String,
     pub description: String,
@@ -16,6 +18,7 @@ pub struct Reference {
     pub exchange_name: String,
 }
 
+#[derive(serde::Deserialize, Debug)]
 pub struct Quote {
     pub fifty_two_week_high: f64,
     pub fifty_two_week_low: f64,
