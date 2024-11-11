@@ -30,13 +30,14 @@ def main(data_path):
         'expiration_date': str,
         'insurance': float,
         'premium': float,
-        'dividend_amount': float,
+        'dividend_quarterly_amount': float,
         'dividend_ex_date': str,
         'return_after_1_div': float,
         'return_after_2_div': float,
         'return_after_3_div': float,
         'return_after_4_div': float,
         'return_after_5_div': float,
+        'return_after_last_div': float,
         'bid': float,
         'mid': float,
         'ask': float,
@@ -92,7 +93,7 @@ def main(data_path):
                                                        r[5]))
                 body = {'values': list(map(list, values))}
                 try_n, try_again = 0, True
-                
+
                 while try_again:
                     try:
                         service.spreadsheets().values().update(
@@ -104,7 +105,7 @@ def main(data_path):
                     except socket.timeout:
                         logging.warn(f'socket timeout....retry # {try_n}')
                         try_n += 1
-                        try_again = try_n < MAX_RETRIES 
+                        try_again = try_n < MAX_RETRIES
 
                         if try_n == MAX_RETRIES:
                             raise Exception('Reached max retries')
