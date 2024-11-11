@@ -2,7 +2,7 @@ from dateutil.relativedelta import relativedelta
 from options import util, polygon_util
 import datetime
 import logging
-import polygon
+import options.clients.polygon
 import os
 import re
 import csv
@@ -38,18 +38,13 @@ def update_dividends(data_path):
 
                 ticker = row['ticker']
                 logging.debug(f'Updating dividends for: {ticker}')
-                dividend = polygon_util.get_next_dividend(client, ticker)
+                dividend = client.get_next_dividend(ticker)
 
                 if dividend is None:
-                    dividend = polygon_util.get_last_dividend(client, ticker)
-                    dividend = dividend.__dict__
+                    dividend = client.get_last_dividend(ticker)
                     dividend['calculated'] = True
-                    if dividend['frequency'] not in util.FREQUENCY_MAPPING:
-                        n_ignored_dividends += 1
-                        continue
                     dividend['ex_dividend_date'] = _add_months(dividend['ex_dividend_date'], dividend['frequency'])
                 else:
-                    dividend = dividend.__dict__
                     dividend['calculated'] = False
 
                 if not dividend['frequency']:
@@ -76,5 +71,5 @@ def update_dividends(data_path):
 
 
 if __name__ == '__main__':
-    client = polygon.RESTClient()
+    client = options.clients.polygon.Polygon()
     update_dividends(data_path=os.getenv('DATA_PATH'))

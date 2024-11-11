@@ -1,14 +1,14 @@
-from typing import Optional
-
 from dateutil.relativedelta import relativedelta
+from functools import partial
+from options import polygon_util
+from typing import Optional
+import csv
 import datetime
 import logging
 import multiprocessing
-import polygon
-from options import polygon_util
 import os
-import csv
-from functools import partial
+import options.clients.polygon
+import polygon
 import time
 
 root = logging.getLogger()
@@ -19,12 +19,12 @@ MIN_STOCK_PRICE = 7.5
 
 def update_eod_prices(data_path):
     with open(f'{data_path}/universe.csv', 'r') as f:
-        symbols = [symbol.strip() for symbol in f.readlines()]
+        tickers = (symbol.strip() for symbol in f.readlines())
 
-    trading_date = polygon_util.get_last_trading_date(client)
+    trading_date = client.get_last_trading_date()
     func = partial(_process, date=trading_date)
     with multiprocessing.Pool(4) as p:
-        list_params = p.map(func, symbols)
+        list_params = p.map(func, tickers)
     if not list_params:
         return
 
@@ -41,21 +41,20 @@ def update_eod_prices(data_path):
                 writer.writerow(params)
 
 def _process(ticker: str, date: str) -> Optional[dict]:
-    _client = polygon_util.LazyPolygonClient.get_instance()
-    quotes = _client.get_aggs(ticker=ticker, multiplier=1, timespan="minute", from_=date, to=date)
+    _client = options.clients.polygon.LazyClient.get_instance()
+    quote = _client.get_close_price(ticker, date)
     time.sleep(0.001)
-    for quote in quotes:
-        if quote is None:
-            logging.info(f'check {ticker}: quote is empty')
-            return
-        return {
-            'ticker': ticker,
-            'previous_stock_price': quote.close,
-            'previous_date': date
-        }
+    if quote is None:
+        logging.info(f'check {ticker}: quote is empty')
+        return
+
+    return {
+        'ticker': ticker,
+        'previous_stock_price': quote['close'],
+        'previous_date': date
+    }
 
 
 if __name__ == '__main__':
-    global client
-    client = polygon.RESTClient()
+    client = options.clients.polygon.Polygon()
     update_eod_prices(data_path=os.getenv('DATA_PATH'))
