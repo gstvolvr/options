@@ -1,5 +1,4 @@
 from dateutil.relativedelta import relativedelta
-from options import util, polygon_util
 import datetime
 import logging
 import options.clients.polygon
