@@ -1,6 +1,5 @@
 use std::error::Error;
 use crate::api::quote::QuoteApiResponse;
-use crate::api::chains::ChainsApiResponse;
 use crate::api::auth::{OAuthClient, MARKET_DATA_API_URL};
 
 pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiResponse, Box<dyn Error>> {
