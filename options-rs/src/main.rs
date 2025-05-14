@@ -8,18 +8,27 @@ use models::options::Options;
 use util::calculate_return_after_dividends;
 use std::collections::HashMap;
 use std::fs::File;
+use oauth2::ClientId;
 
 pub mod api;
 use api::schwab::call_api;
+use crate::api::schwab::quote;
 
-
-fn main() {
+#[tokio::main]
+async fn main() {
+    let initial_token = crate::api::auth::get_initial_token().await;
+    // let initial_token = Some(env::var("INITIAL_TOKEN")).expect("Missing Initial Token");
+    println!("{:?}", initial_token);
+    let oauth_client = crate::api::auth::OAuthClient::new(initial_token.expect("Initial token"));
+    let symbol = "AAPL";
+    let data = quote(symbol, &oauth_client).await;
+    println!("{:?}", data);
     // update_returns();
-    call_api();
+    // call_api();
 }
 
-fn _process(record: &Options, dividend: &Dividend) -> Option<Options> {
 
+fn _process(record: &Options, dividend: &Dividend) -> Option<Options> {
     if record.premium() < 0.05 {
         return None
     }
