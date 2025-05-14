@@ -10,18 +10,27 @@ use std::fs::File;
 
 pub mod api;
 use crate::api::schwab::quote;
+use crate::api::token_storage::TOKEN_STORAGE;
 
 #[tokio::main]
 async fn main() {
-    let initial_token = crate::api::auth::get_initial_token().await;
-    // let initial_token = Some(env::var("INITIAL_TOKEN")).expect("Missing Initial Token");
-    println!("{:?}", initial_token);
-    let oauth_client = crate::api::auth::OAuthClient::new(initial_token.expect("Initial token"));
+    println!("Checking for stored token...");
+    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
+        println!("Found stored token");
+        stored_token
+    } else {
+        println!("No valid token found, obtaining new token...");
+        let new_token = crate::api::auth::get_initial_token().await.expect("Failed to get token");
+        TOKEN_STORAGE.save_token(new_token.clone());
+        println!("New token obtained and saved");
+        new_token
+    };
+
+    let oauth_client = crate::api::auth::OAuthClient::new(token);
     let symbol = "AAPL";
-    let data = quote(symbol, &oauth_client).await;
-    println!("{:?}", data);
+    let quotes = quote(symbol, &oauth_client).await;
+    println!("{:?}", quotes);
     // update_returns();
-    // call_api();
 }
 
 
@@ -98,4 +107,3 @@ fn update_returns() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
