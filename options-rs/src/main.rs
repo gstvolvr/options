@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs::File;
 
 pub mod api;
-use crate::api::schwab::quote;
+use crate::api::schwab::{chains, quote};
 use crate::api::token_storage::TOKEN_STORAGE;
 
 #[tokio::main]
@@ -30,6 +30,8 @@ async fn main() {
     let symbol = "AAPL";
     let quotes = quote(symbol, &oauth_client).await;
     println!("{:?}", quotes);
+    let chains = chains(symbol, &oauth_client).await;
+    println!("{:?}", chains);
     // update_returns();
 }
 
