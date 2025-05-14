@@ -34,13 +34,15 @@ impl OAuthClient {
         *token = new_token;
     }
 
-    async fn get(&self, url: &str) -> Result<reqwest::Response, Error> {
+    pub async fn get(&self, url: &str) -> Result<reqwest::Response, Error> {
         let token = self.token.lock().unwrap().clone();
-        self.client
+        let request = self.client
             .get(url)
             .bearer_auth(token)
-            .send()
-            .await
+            .header("accept", "application/json")
+            .send();
+
+        request.await
     }
 }
 
