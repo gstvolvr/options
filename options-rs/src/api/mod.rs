@@ -1,4 +1,5 @@
 pub mod schwab;
 mod quote;
 mod chains;
-mod auth;
+pub(crate) mod auth;
+mod server;
