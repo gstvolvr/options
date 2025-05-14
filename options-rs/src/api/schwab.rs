@@ -31,8 +31,6 @@ pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiR
 }
 
 // TODO: fill in
-pub async fn chains(symbol: &str) -> Result<ChainsApiResponse, Box<dyn Error>> {
-    let api_url = format!("{}/chains?symbols={}&fields=quote&indicative=false", MARKET_DATA_API_URL, symbol);
-    let response: ChainsApiResponse = call_api(&api_url).await?;
-    Ok(response)
-}
+// pub async fn chains(symbol: &str) -> Result<ChainsApiResponse, Box<dyn Error>> {
+//     let api_url = format!("{}/chains?symbols={}&fields=quote&indicative=false", MARKET_DATA_API_URL, symbol);
+// }

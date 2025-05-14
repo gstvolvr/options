@@ -1,6 +1,5 @@
-use csv::{ReaderBuilder, WriterBuilder};
-use std::env;
-use chrono::{DateTime, Utc, NaiveDate, Duration};
+use csv::{WriterBuilder};
+use chrono::{Utc, Duration};
 pub mod models;
 pub mod util;
 use models::dividend::Dividend;
@@ -8,10 +7,8 @@ use models::options::Options;
 use util::calculate_return_after_dividends;
 use std::collections::HashMap;
 use std::fs::File;
-use oauth2::ClientId;
 
 pub mod api;
-use api::schwab::call_api;
 use crate::api::schwab::quote;
 
 #[tokio::main]
