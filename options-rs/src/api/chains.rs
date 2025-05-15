@@ -1,4 +1,9 @@
 use std::collections::HashMap;
+/// TODO:
+/// - Finish writing up docstrings
+/// - Determine at what level we want to do calculations
+/// - Implement calculations at that level
+/// -
 /// Documentation: https://developer.schwab.com/products/trader-api--individual/details/documentation/Market%20Data%20Production
 
 #[derive(serde::Deserialize, Debug)]
@@ -399,4 +404,30 @@ pub struct OptionContract {
     pub percent_change: f64,
     /// # Example: 0.08
     pub mark_change: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    #[test]
+    fn test_chains_response_deserialization() {
+        let test_data_path = Path::new("src/api/test_data/chains_test_data.json");
+        let json_str = fs::read_to_string(test_data_path)
+            .expect("Failed to read test data file");
+        let json_data: serde_json::Value = serde_json::from_str(&json_str)
+            .expect("Failed to parse JSON from test data file");
+
+        let result: Result<ChainsApiResponse, _> = serde_json::from_value(json_data);
+        assert!(result.is_ok());
+
+        let chains = result.unwrap();
+        assert_eq!(chains.symbol, "AAPL");
+        assert_eq!(chains.status, "SUCCESS");
+        assert_eq!(chains.strategy, "COVERED");
+        assert_eq!(chains.underlying.ask, 211.91);
+        assert_eq!(chains.underlying.bid, 211.85);
+    }
 }
