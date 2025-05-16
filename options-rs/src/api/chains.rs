@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use chrono::NaiveDate;
+use crate::util;
+
 /// TODO:
 /// - Finish writing up docstrings
 /// - Determine at what level we want to do calculations
 /// - Implement calculations at that level
-/// -
+/// - Find dividend data
 /// Documentation: https://developer.schwab.com/products/trader-api--individual/details/documentation/Market%20Data%20Production
 
 #[derive(serde::Deserialize, Debug)]
@@ -47,6 +50,11 @@ pub struct ChainsApiResponse {
     pub call_exp_date_map: HashMap<String, HashMap<String, Vec<OptionContract>>>,
     #[serde(default)]
     pub put_exp_date_map: HashMap<String, HashMap<String, Vec<OptionContract>>>,
+}
+
+impl ChainsApiResponse {
+    pub fn net() {
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -100,6 +108,12 @@ pub struct Underlying {
     pub total_volume: f64,
     /// # Example: 1747220214053.0
     pub trade_time: f64,
+}
+
+impl Underlying {
+    pub fn mid(&self) -> f64 {
+        (self.ask + self.bid) / 2.0
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -259,6 +273,9 @@ pub struct PrimaryLeg {
     /// # Example: 13.55
     pub ask: f64,
     pub volume: i64,
+    /// # Example: ITM
+    /// ITM: underlying asset price is above the strike price
+    /// OTM: underlying asset price is below the strike price
     pub range: String,
     pub strike_price: f64,
     pub settlement_type: String,
@@ -406,6 +423,44 @@ pub struct OptionContract {
     pub mark_change: f64,
 }
 
+impl OptionContract {
+    /// Mid-point
+    pub fn mid(&self) -> f64 {
+        (self.ask_price + self.bid_price) / 2.0
+    }
+    /// Net position give the current bid / ask spread
+    pub fn net(&self, underlying_equity_price: f64) -> f64 {
+        underlying_equity_price - self.mid()
+    }
+
+    /// TODO: add explanation about options premiums
+    pub fn premium(&self, underlying_equity_price: f64) -> f64 {
+        self.strike_price() - self.net(underlying_equity_price)
+    }
+
+    /// Downside protection you have on the position
+    pub fn insurance(&self, underlying_equity_price: f64) -> f64 {
+        (underlying_equity_price - self.net(underlying_equity_price)) / underlying_equity_price
+    }
+
+    /// Sometimes we get invalid values from the API
+    pub fn is_realistic_contract(&self, underlying_equity_price: f64) -> bool {
+        // the strike isn't too high
+        underlying_equity_price * 0.50 < self.strike_price &&
+        // the premium isn't too low
+        self.premium(underlying_equity_price) > 0.05
+    }
+
+    /// convert unix timestamp into a NaiveDate object
+    // pub fn expiration_date(&self) -> NaiveDate {
+    //     util::unix_to_date(self.expiration_date.parse::<i64>().unwrap())
+    // }
+
+    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, dividend_rate: f64) -> f64 {
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,5 +484,10 @@ mod tests {
         assert_eq!(chains.strategy, "COVERED");
         assert_eq!(chains.underlying.ask, 211.91);
         assert_eq!(chains.underlying.bid, 211.85);
+    }
+
+    #[test]
+    fn test_options_calculations() {
+
     }
 }
