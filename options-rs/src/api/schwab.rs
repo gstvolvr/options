@@ -4,7 +4,8 @@ use crate::api::auth::{OAuthClient, MARKET_DATA_API_URL};
 use crate::api::chains::ChainsApiResponse;
 
 pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiResponse, Box<dyn Error>> {
-    let api_url = format!("{}/quotes?symbols={}&fields=quote,reference&indicative=false", MARKET_DATA_API_URL, symbol);
+    // not including `fields` in the query returns everything
+    let api_url = format!("{}/quotes?symbols={}&indicative=false", MARKET_DATA_API_URL, symbol);
     println!("Retrieving data from: {}", &api_url);
     let response = oauth_client.get(&api_url).await?;
 
