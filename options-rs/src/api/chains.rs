@@ -1,6 +1,8 @@
+#![allow(warnings)]
 use std::collections::HashMap;
 use chrono::{NaiveDate};
 use std::str::FromStr;
+use crate::api::quote::Fundamental;
 
 /// TODO:
 /// - Finish writing up docstrings
@@ -328,6 +330,7 @@ pub struct PrimaryLeg {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+/// When the markets are closed Schwab does not provide the latest `ask`, `bid` prices
 pub struct OptionContract {
     /// # Example: "C"
     pub put_call: String,
@@ -358,7 +361,7 @@ pub struct OptionContract {
     /// # Example: 0.0
     pub open_price: f64,
     /// # Example: 13.1395
-    pub close_price: f64,
+    pub close_price: Option<f64>,
     /// # Example: 0
     pub total_volume: i64,
     /// # Example: 1747166396890
@@ -421,32 +424,50 @@ pub struct OptionContract {
 }
 
 impl OptionContract {
-    pub fn mid(&self) -> Result<f64, String> {
-        match (self.bid_price, self.ask_price) {
-            (Some(bid), Some(ask)) => Ok((ask + bid) / 2.0),
-            (_, _) => Err("Bid or ask price are not available".to_string())
+    /// If the bid or ask prices are not defined, we fall back to the close price
+    pub fn mid(&self) -> Option<f64> {
+        match (self.bid_price, self.ask_price, self.close_price) {
+            (Some(bid), Some(ask), _) => Some((ask + bid) / 2.0),
+            (_, _, Some(last_price)) => Some(last_price),
+            (_, _, _) => None
         }
     }
 
-    /// Net position give the current bid / ask spread
-    pub fn net(&self, underlying_equity_price: f64) -> Result<f64, String> {
-        Ok(underlying_equity_price - self.mid()?)
+    /// Cost basis for a buy write trade given the current bid / ask spread
+    pub fn buy_write_cost_basis(&self, underlying_equity_price: f64) -> Option<f64> {
+        self.mid().map(|mid| underlying_equity_price - mid)
     }
 
+    fn intrinsic_value(&self) -> f64 {
+        0.0
+    }
+
+    fn premium(&self) -> f64 {
+        self.time_value + self.intrinsic_value()
+        // self.buy_write_cost_basis(underlying_equity_price).map(|net| self.strike_price - net)
+    }
     /// TODO: add explanation about options-py premiums
-    pub fn premium(&self, underlying_equity_price: f64) -> Result<f64, String> {
-        Ok(self.strike_price - self.net(underlying_equity_price)?)
+    /// Assuming we're talking about call options
+    /// The `premium` is broken out into 2 components
+    /// 1. Intrinsic value: the actual value of the option if exercise immediately
+    ///     max(0, Underlying Equity Price - Strike Price)
+    /// 2. Extrinsic value (time value): the additional premium above the intrinsic value
+    pub fn buy_write_premium(&self, underlying_equity_price: f64) -> Option<f64> {
+        self.buy_write_cost_basis(underlying_equity_price).map(|net| self.strike_price - net)
     }
 
     /// Downside protection you have on the position
-    pub fn insurance(&self, underlying_equity_price: f64) -> Result<f64, String> {
-        Ok((underlying_equity_price - self.net(underlying_equity_price)?) / underlying_equity_price)
+    pub fn buy_write_insurance(&self, underlying_equity_price: f64) -> Option<f64> {
+        self.buy_write_cost_basis(underlying_equity_price).map(|net| (underlying_equity_price - net) / underlying_equity_price)
     }
 
     /// Sometimes we get invalid values from the API
-    pub fn is_realistic_contract(&self, underlying_equity_price: f64) -> Result<bool, String> {
-        Ok(underlying_equity_price * 0.50 < self.strike_price &&
-            self.premium(underlying_equity_price)? > 0.05)
+    pub fn should_ignore(&self, underlying_equity_price: f64) -> Result<bool, String> {
+        Ok(self.buy_write_cost_basis(underlying_equity_price).is_none())
+        // self.bid_price.is_none() ||
+        //     self.ask_price.is_none()
+        // underlying_equity_price * 0.50 > self.strike_price ||
+        // self.premium(underlying_equity_price)? < 0.05
     }
 
     /// convert unix timestamp into a NaiveDate object  
@@ -454,7 +475,7 @@ impl OptionContract {
         NaiveDate::from_str(&self.expiration_date).expect("Failed to parse expiration date")
     }
 
-    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, dividend_rate: f64) -> f64 {
+    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental) -> f64 {
         0.0
     }
 
@@ -483,8 +504,38 @@ pub(crate) mod tests {
         let chains = test_utils::load_test_chains_data();
         let quote = test_utils::load_test_quote_data();
 
-        for monthly_strategy in chains.call_exp_date_map {
-            println!("{:?}", monthly_strategy);
+        for (expiration_date, strikes) in chains.call_exp_date_map {
+            for (strike, contracts) in strikes {
+                for contract in contracts {
+                    // Print contract details and calculated values
+                    if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
+                        println!("Skipping contract: {}", contract.description);
+                        println!("{:?}", contract);
+                        continue
+                    }
+                    println!(
+                        "\nContract Analysis:\n\
+                         Expiration Date:   {}\n\
+                         Strike Price:      ${}\n\
+                         Equity Price:      ${}\n\
+                         Contract Price:    ${}\n\
+                         Time Value:        ${}\n\
+                         Theoretical Value: ${}\n\
+                         Net Position:      ${:.2}\n\
+                         Insurance:         {:.2}%\n\
+                         Premium:           ${:.2}",
+                        expiration_date,
+                        strike,
+                        quote.quote.last_price,
+                        contract.mid().unwrap_or(0.0),
+                        contract.time_value,
+                        contract.theoretical_option_value,
+                        contract.buy_write_cost_basis(quote.quote.last_price).unwrap(),
+                        contract.buy_write_insurance(quote.quote.last_price).unwrap() * 100.0,
+                        contract.buy_write_premium(quote.quote.last_price).unwrap()
+                    );
+                }
+            }
         }
     }
 }

@@ -99,4 +99,3 @@ pub fn unix_to_date(timestamp: i64) -> NaiveDate {
     let date: NaiveDate = DateTime::from_timestamp(timestamp, 0).unwrap().date_naive();
     date
 }
-
