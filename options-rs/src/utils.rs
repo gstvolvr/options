@@ -1,14 +1,14 @@
-use chrono::{DateTime, NaiveDate, Duration};
 use crate::models;
-use models::options::Options;
-use models::dividend::Dividend;
+use chrono::{DateTime, NaiveDate};
+use csv::ReaderBuilder;
+// use models::dividend::Dividend;
+// use models::options::Options;
 use phf::phf_map;
-use std::fs::File;
-use std::error::Error;
-use std::io::BufReader;
-use csv::{ReaderBuilder, WriterBuilder};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fs::File;
+use std::io::BufReader;
 
 
 static FREQUENCY_MAPPING: phf::Map<&str, i64> = phf_map! {
@@ -18,18 +18,19 @@ static FREQUENCY_MAPPING: phf::Map<&str, i64> = phf_map! {
     "bimonthly" => 2
 };
 
+static MONTHS_IN_QUARTER: i64 = 3;
 
-pub fn calculate_return_after_dividends(record: &Options, dividend: &Dividend, n_dividends: i64) -> f64 {
-    let months_in = FREQUENCY_MAPPING.get(&dividend.dividend_frequency).unwrap();
-    // println!("{:?}", months_in);
-    // TODO: review this
-    //let dividend_ex_date: NaiveDate = DateTime::from_timestamp(dividend.dividend_ex_date, 0).unwrap().date_naive();
-    // println!("{:?}", months_in);
-    //let next_dividend_date: NaiveDate = dividend_ex_date + Duration::days((30 * months_in * (n_dividends)).into());
-    // println!("{:?}", record);
-    // figure out how to check for dates
-    return 0.0
-}
+// pub fn calculate_return_after_dividends(record: &Options, dividend: &Dividend, n_dividends: i64) -> f64 {
+//     let months_in = FREQUENCY_MAPPING.get(&dividend.dividend_frequency).unwrap();
+//     // println!("{:?}", months_in);
+//     // TODO: review this
+//     //let dividend_ex_date: NaiveDate = DateTime::from_timestamp(dividend.dividend_ex_date, 0).unwrap().date_naive();
+//     // println!("{:?}", months_in);
+//     //let next_dividend_date: NaiveDate = dividend_ex_date + Duration::days((30 * months_in * (n_dividends)).into());
+//     // println!("{:?}", record);
+//     // figure out how to check for dates
+//     0.0
+// }
 
 
 /// generic function to read CSV file
@@ -70,26 +71,26 @@ pub fn read_csv<T: for<'de> Deserialize<'de>>(file_path: &str) -> Result<Vec<T>,
 // }
 
 /// load local dividends data into a HashMap keyed by the symbol
-pub fn get_dividend_map() -> Result<HashMap<String, Dividend>, Box<dyn Error>> {
-    let dividends: Vec<Dividend> = read_csv("../data/dividends.csv")?;
-    // println!("{:?}", dividends);
-    // println!("{:?}", "here");
-    let dividends: HashMap<String, Dividend> = dividends
-        .into_iter()
-        .map(|d| (d.dividend_symbol.clone(), d))
-        .collect();
-    Ok(dividends)
-}
-
-/// load local options data into a Vector
-pub fn get_options() -> Result<Vec<Options>, Box<dyn Error>> {
-    read_csv("../data/options.csv")
-}
-
-/// load local dividends data into a Vector
-pub fn get_dividends() -> Result<Vec<Options>, Box<dyn Error>> {
-    read_csv("../data/dividends.csv")
-}
+// pub fn get_dividend_map() -> Result<HashMap<String, Dividend>, Box<dyn Error>> {
+//     let dividends: Vec<Dividend> = read_csv("../data/dividends.csv")?;
+//     // println!("{:?}", dividends);
+//     // println!("{:?}", "here");
+//     let dividends: HashMap<String, Dividend> = dividends
+//         .into_iter()
+//         .map(|d| (d.dividend_symbol.clone(), d))
+//         .collect();
+//     Ok(dividends)
+// }
+//
+// /// load local options-py data into a Vector
+// pub fn get_options() -> Result<Vec<Options>, Box<dyn Error>> {
+//     read_csv("../data/options-py.csv")
+// }
+//
+// /// load local dividends data into a Vector
+// pub fn get_dividends() -> Result<Vec<Options>, Box<dyn Error>> {
+//     read_csv("../data/dividends.csv")
+// }
 
 /// convert a unix timestamp into a chrono::NaiveDate
 pub fn unix_to_date(timestamp: i64) -> NaiveDate {
@@ -98,3 +99,4 @@ pub fn unix_to_date(timestamp: i64) -> NaiveDate {
     let date: NaiveDate = DateTime::from_timestamp(timestamp, 0).unwrap().date_naive();
     date
 }
+

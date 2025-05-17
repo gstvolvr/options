@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
-use crate::util;
+use crate::utils;
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Options {
@@ -89,7 +89,7 @@ impl Options {
 
     /// convert unix timestamp into a NaiveDate object
     pub fn expiration_date(&self) -> NaiveDate {
-        util::unix_to_date(self.expiration_date)
+        utils::unix_to_date(self.expiration_date)
     }
 
     pub fn new(self) -> Options {
@@ -113,4 +113,5 @@ impl Options {
             return_after_6_div: None,
         }
     }
+
 }
