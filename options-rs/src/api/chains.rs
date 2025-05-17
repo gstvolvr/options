@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use chrono::NaiveDate;
-use crate::util;
+use chrono::{NaiveDate};
+use std::str::FromStr;
 
 /// TODO:
 /// - Finish writing up docstrings
@@ -9,7 +9,7 @@ use crate::util;
 /// - Find dividend data
 /// Documentation: https://developer.schwab.com/products/trader-api--individual/details/documentation/Market%20Data%20Production
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainsApiResponse {
     /// # Example: "AAPL"
@@ -44,20 +44,16 @@ pub struct ChainsApiResponse {
     /// # Example: false
     pub is_chain_truncated: bool,
     /// # Example: []
-    pub intervals: Vec<String>,
-    pub monthly_strategy_list: Vec<MonthlyStrategy>,
+    // pub intervals: Vec<String>,
+    // pub monthly_strategy_list: Vec<MonthlyStrategy>,
     #[serde(default)]
     pub call_exp_date_map: HashMap<String, HashMap<String, Vec<OptionContract>>>,
     #[serde(default)]
     pub put_exp_date_map: HashMap<String, HashMap<String, Vec<OptionContract>>>,
 }
 
-impl ChainsApiResponse {
-    pub fn net() {
-    }
-}
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Underlying {
     /// # Example: 211.91
@@ -175,7 +171,7 @@ pub struct AdditionalProp {
     pub days_to_expiration: f64,
     pub expiration_type: String,
     pub last_trading_day: i64,
-    pub multiplier: i64,
+    pub multiplier: f64,
     pub settlement_type: String,
     pub deliverable_note: String,
     pub is_index_option: bool,
@@ -187,16 +183,17 @@ pub struct AdditionalProp {
     pub option_root: String,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionDeliverables {
     pub symbol: String,
     pub asset_type: String,
-    pub deliverable_units: String,
-    pub currency_type: String,
+    pub deliverable_units: f64,
+    // sometimes not in the response
+    pub currency_type: Option<String>,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MonthlyStrategy {
     /// # Example: "May"
@@ -225,7 +222,7 @@ pub struct MonthlyStrategy {
     pub secondary_leap: bool,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionStrategy {
     pub primary_leg: PrimaryLeg,
@@ -249,7 +246,7 @@ pub struct OptionStrategy {
     pub strategy_rho: f64,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PrimaryLeg {
     /// Ticker symbol. Using the following format:
@@ -296,7 +293,7 @@ pub struct PrimaryLeg {
     pub low_price: f64,
     /// 52 Week High
     pub high52_week: f64,
-    /// 52 Week Low 
+    /// 52 Week Low
     pub low52_week: f64,
     /// Day's Open Price Yes No According to industry standard, only regular session trades set the open
     /// If a stock does not trade during the regular session, then the open price is 0.
@@ -329,7 +326,7 @@ pub struct PrimaryLeg {
     pub total_volume: f64,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionContract {
     /// # Example: "C"
@@ -338,16 +335,16 @@ pub struct OptionContract {
     pub symbol: String,
     /// # Example: "AAPL 05/16/2025 200.00 C"
     pub description: String,
-    /// # Example: "NASDAQ" 
+    /// # Example: "NASDAQ"
     pub exchange_name: String,
     /// # Example: 13.0
-    pub bid_price: f64,
+    pub bid_price: Option<f64>,
     /// # Example: 13.35
-    pub ask_price: f64,
+    pub ask_price: Option<f64>,
     /// # Example: 13.21
-    pub last_price: f64,
+    pub last_price: Option<f64>,
     /// # Example: 13.18
-    pub mark_price: f64,
+    pub mark_price: Option<f64>,
     /// # Example: 11
     pub bid_size: i64,
     /// # Example: 17
@@ -365,7 +362,7 @@ pub struct OptionContract {
     /// # Example: 0
     pub total_volume: i64,
     /// # Example: 1747166396890
-    pub trade_date: i64,
+    pub trade_date: Option<i64>,
     /// # Example: 1747166400130
     pub quote_time_in_long: i64,
     /// # Example: 1747166396890
@@ -389,15 +386,15 @@ pub struct OptionContract {
     /// # Example: 16043
     pub open_interest: i64,
     /// # Example: true
-    pub is_in_the_money: bool,
+    pub is_in_the_money: Option<bool>,
     /// # Example: 13.21
     pub theoretical_option_value: f64,
     /// # Example: 40.2723985931935
     pub theoretical_volatility: f64,
     /// # Example: false
-    pub is_mini: bool,
+    pub is_mini: Option<bool>,
     /// # Example: false
-    pub is_non_standard: bool,
+    pub is_non_standard: Option<bool>,
     pub option_deliverables_list: Vec<OptionDeliverables>,
     /// # Example: 200.0
     pub strike_price: f64,
@@ -409,14 +406,14 @@ pub struct OptionContract {
     pub expiration_type: String,
     /// # Example: 1747166396890
     pub last_trading_day: i64,
-    /// # Example: 100
-    pub multiplier: i64,
+    /// # Example: 100.0
+    pub multiplier: f64,
     /// # Example: "P"
     pub settlement_type: String,
     /// # Example: ""
     pub deliverable_note: String,
     /// # Example: false
-    pub is_index_option: bool,
+    pub is_index_option: Option<bool>,
     /// # Example: 0.53
     pub percent_change: f64,
     /// # Example: 0.08
@@ -424,61 +421,56 @@ pub struct OptionContract {
 }
 
 impl OptionContract {
-    /// Mid-point
-    pub fn mid(&self) -> f64 {
-        (self.ask_price + self.bid_price) / 2.0
-    }
-    /// Net position give the current bid / ask spread
-    pub fn net(&self, underlying_equity_price: f64) -> f64 {
-        underlying_equity_price - self.mid()
+    pub fn mid(&self) -> Result<f64, String> {
+        match (self.bid_price, self.ask_price) {
+            (Some(bid), Some(ask)) => Ok((ask + bid) / 2.0),
+            (_, _) => Err("Bid or ask price are not available".to_string())
+        }
     }
 
-    /// TODO: add explanation about options premiums
-    pub fn premium(&self, underlying_equity_price: f64) -> f64 {
-        self.strike_price() - self.net(underlying_equity_price)
+    /// Net position give the current bid / ask spread
+    pub fn net(&self, underlying_equity_price: f64) -> Result<f64, String> {
+        Ok(underlying_equity_price - self.mid()?)
+    }
+
+    /// TODO: add explanation about options-py premiums
+    pub fn premium(&self, underlying_equity_price: f64) -> Result<f64, String> {
+        Ok(self.strike_price - self.net(underlying_equity_price)?)
     }
 
     /// Downside protection you have on the position
-    pub fn insurance(&self, underlying_equity_price: f64) -> f64 {
-        (underlying_equity_price - self.net(underlying_equity_price)) / underlying_equity_price
+    pub fn insurance(&self, underlying_equity_price: f64) -> Result<f64, String> {
+        Ok((underlying_equity_price - self.net(underlying_equity_price)?) / underlying_equity_price)
     }
 
     /// Sometimes we get invalid values from the API
-    pub fn is_realistic_contract(&self, underlying_equity_price: f64) -> bool {
-        // the strike isn't too high
-        underlying_equity_price * 0.50 < self.strike_price &&
-        // the premium isn't too low
-        self.premium(underlying_equity_price) > 0.05
+    pub fn is_realistic_contract(&self, underlying_equity_price: f64) -> Result<bool, String> {
+        Ok(underlying_equity_price * 0.50 < self.strike_price &&
+            self.premium(underlying_equity_price)? > 0.05)
     }
 
-    /// convert unix timestamp into a NaiveDate object
-    // pub fn expiration_date(&self) -> NaiveDate {
-    //     util::unix_to_date(self.expiration_date.parse::<i64>().unwrap())
-    // }
+    /// convert unix timestamp into a NaiveDate object  
+    pub fn expiration_date(&self) -> NaiveDate {
+        NaiveDate::from_str(&self.expiration_date).expect("Failed to parse expiration date")
+    }
 
     pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, dividend_rate: f64) -> f64 {
+        0.0
     }
 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use crate::api::quote::QuoteApiResponse;
+    use crate::test_utils;
 
     #[test]
     fn test_chains_response_deserialization() {
-        let test_data_path = Path::new("src/api/test_data/chains_test_data.json");
-        let json_str = fs::read_to_string(test_data_path)
-            .expect("Failed to read test data file");
-        let json_data: serde_json::Value = serde_json::from_str(&json_str)
-            .expect("Failed to parse JSON from test data file");
-
-        let result: Result<ChainsApiResponse, _> = serde_json::from_value(json_data);
-        assert!(result.is_ok());
-
-        let chains = result.unwrap();
+        let chains = test_utils::load_test_chains_data();
         assert_eq!(chains.symbol, "AAPL");
         assert_eq!(chains.status, "SUCCESS");
         assert_eq!(chains.strategy, "COVERED");
@@ -487,7 +479,12 @@ mod tests {
     }
 
     #[test]
-    fn test_options_calculations() {
+    fn test_return_calculations() {
+        let chains = test_utils::load_test_chains_data();
+        let quote = test_utils::load_test_quote_data();
 
+        for monthly_strategy in chains.call_exp_date_map {
+            println!("{:?}", monthly_strategy);
+        }
     }
 }

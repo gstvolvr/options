@@ -1,6 +1,6 @@
 pub mod schwab;
-mod quote;
-mod chains;
-pub(crate) mod auth;
+pub mod quote;
+pub mod chains;
+pub mod auth;
 mod server;
 pub mod token_storage;

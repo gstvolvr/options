@@ -1,3 +1,6 @@
+//! Schwab API OAuth 2 Authentication
+//! Schwab Documentation: https://developer.schwab.com/user-guides/get-started/authenticate-with-oauth
+
 use url::Url;
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
@@ -7,6 +10,7 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use tokio;
 use tokio::io::{self, AsyncBufReadExt};
+
 
 
 pub const MARKET_DATA_API_URL: &str = "https://api.schwabapi.com/marketdata/v1";
