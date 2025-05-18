@@ -486,8 +486,75 @@ pub(crate) mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use lazy_static::lazy_static;
+    use reqwest::get;
     use crate::api::quote::QuoteApiResponse;
     use crate::test_utils;
+    lazy_static!(
+        static ref SAMPLE_EQUITY_PRICE: f64 = 207.93;
+    );
+    fn round_to_two_decimals(value: f64) -> f64 {
+        (value * 100.0).round() / 100.0
+    }
+    fn get_test_sample_contract() -> OptionContract {
+        serde_json::from_str(&r#"
+            {
+                "putCall": "CALL",
+                "symbol": "AAPL  250523C00155000",
+                "description": "AAPL 05/23/2025 155.00 C",
+                "exchangeName": "OPR",
+                "bidPrice": null,
+                "askPrice": null,
+                "lastPrice": null,
+                "markPrice": null,
+                "bidSize": 105,
+                "askSize": 105,
+                "lastSize": 1,
+                "highPrice": 57.61,
+                "lowPrice": 57.61,
+                "openPrice": 0.0,
+                "closePrice": 56.38,
+                "totalVolume": 1,
+                "tradeDate": null,
+                "quoteTimeInLong": 1747425598781,
+                "tradeTimeInLong": 1747402302471,
+                "netChange": 1.23,
+                "volatility": 79.56,
+                "delta": 0.998,
+                "gamma": 0.0,
+                "theta": -0.02,
+                "vega": 0.002,
+                "rho": 0.03,
+                "timeValue": 1.35,
+                "openInterest": 0,
+                "isInTheMoney": null,
+                "theoreticalOptionValue": 56.35,
+                "theoreticalVolatility": 29.0,
+                "isMini": null,
+                "isNonStandard": null,
+                "optionDeliverablesList": [
+                    {
+                    "symbol": "AAPL",
+                    "assetType": "STOCK",
+                    "deliverableUnits": 100.0,
+                    "currencyType": null
+                    }
+                ],
+                "strikePrice": 155.0,
+                "expirationDate": "2025-05-23T20:00:00.000+00:00",
+                "daysToExpiration": 6.0,
+                "expirationType": "W",
+                "lastTradingDay": 1748044800000,
+                "multiplier": 100.0,
+                "settlementType": "P",
+                "deliverableNote": "100 AAPL",
+                "isIndexOption": null,
+                "percentChange": 2.18,
+                "markChange": 0.02
+            }
+            "#).unwrap()
+    }
+
 
     #[test]
     fn test_chains_response_deserialization() {
@@ -515,6 +582,7 @@ pub(crate) mod tests {
                     }
                     println!(
                         "\nContract Analysis:\n\
+                         Contract:          {}\n\
                          Expiration Date:   {}\n\
                          Strike Price:      ${}\n\
                          Equity Price:      ${}\n\
@@ -524,6 +592,7 @@ pub(crate) mod tests {
                          Net Position:      ${:.2}\n\
                          Insurance:         {:.2}%\n\
                          Premium:           ${:.2}",
+                        contract.description,
                         expiration_date,
                         strike,
                         quote.quote.last_price,
@@ -537,5 +606,37 @@ pub(crate) mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    /// Should match the close price when the bid / ask values are null
+    fn test_mid_point_calculation() {
+        let contract = get_test_sample_contract();
+        assert_eq!(56.38, contract.mid().unwrap())
+    }
+    #[test]
+    fn test_cost_basis_calculation() {
+        let contract = get_test_sample_contract();
+        assert_eq!(
+            151.55,
+            contract.buy_write_cost_basis(*SAMPLE_EQUITY_PRICE).unwrap()
+        )
+    }
+    #[test]
+    fn test_premium_calculation() {
+        let contract = get_test_sample_contract();
+        assert_eq!(
+            3.45,
+            round_to_two_decimals(contract.buy_write_premium(*SAMPLE_EQUITY_PRICE).unwrap())
+        )
+    }
+
+    #[test]
+    fn test_insurance_calculation() {
+        let contract = get_test_sample_contract();
+        assert_eq!(
+            0.27,
+            round_to_two_decimals(contract.buy_write_insurance(*SAMPLE_EQUITY_PRICE).unwrap())
+        )
     }
 }
