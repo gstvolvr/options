@@ -92,7 +92,7 @@ pub(crate) struct Extended {
     pub trade_time: i64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Fundamental {
     pub avg10_days_volume: f64,
