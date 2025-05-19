@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
+use std::str::FromStr;
 
 
 static FREQUENCY_MAPPING: phf::Map<&str, i64> = phf_map! {
@@ -98,4 +99,22 @@ pub fn unix_to_date(timestamp: i64) -> NaiveDate {
     // TODO: add proper handling in case this isn't a valid value
     let date: NaiveDate = DateTime::from_timestamp(timestamp, 0).unwrap().date_naive();
     date
+}
+
+/// Convert common date patterns used by the API to a NaviveDate
+
+pub fn parse_date(date_str: &str) -> Result<NaiveDate, Box<dyn Error>> {
+    if date_str.contains('T') {
+        // Parse ISO 8601 format (with time component)
+        match DateTime::parse_from_rfc3339(date_str) {
+            Ok(datetime) => Ok(datetime.date_naive()),
+            Err(e) => Err(Box::new(e))
+        }
+    } else {
+        // Fallback to simple date format
+        match NaiveDate::from_str(date_str) {
+            Ok(date) => Ok(date),
+            Err(e) => Err(Box::new(e))
+        }
+    }
 }
