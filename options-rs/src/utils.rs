@@ -1,11 +1,7 @@
-use crate::models;
 use chrono::{DateTime, NaiveDate};
 use csv::ReaderBuilder;
-// use models::dividend::Dividend;
-// use models::options::Options;
 use phf::phf_map;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
@@ -116,5 +112,28 @@ pub fn parse_date(date_str: &str) -> Result<NaiveDate, Box<dyn Error>> {
             Ok(date) => Ok(date),
             Err(e) => Err(Box::new(e))
         }
+    }
+}
+
+pub fn round_to_decimals(value: f64, decimals: Option<f64>) -> f64 {
+    let decimals = decimals.unwrap_or(2.0);
+    (value * 10.0_f64.powf(decimals)).round() / (10.0_f64.powf(decimals))
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    #[test]
+    fn round_decimals() {
+        assert_eq!(
+            round_to_decimals(1.23456789, Some(2.0)),
+            1.23
+        );
+
+        assert_eq!(
+            round_to_decimals(1.23456789, Some(3.0)),
+            1.235
+        );
     }
 }
