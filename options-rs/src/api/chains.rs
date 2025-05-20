@@ -613,42 +613,73 @@ pub(crate) mod tests {
         assert_eq!(chains.underlying.bid, 211.85);
     }
 
+    #[derive(Debug)]
+    struct ContractAnalysis {
+        contract: String,
+        expiration_date: String,
+        strike_price: String,
+        equity_price: f64,
+        contract_price: f64,
+        time_value: f64,
+        theoretical_value: f64,
+        net_position: f64,
+        insurance: f64,
+        premium: f64,
+        return_1_div: f64,
+        return_2_div: f64,
+        return_3_div: f64,
+        return_4_div: f64,
+        return_5_div: f64,
+    }
+
     #[test]
     fn test_return_calculations() {
         let chains = test_utils::load_test_chains_data();
         let quote = test_utils::load_test_quote_data();
 
+        println!("{:<30} {:<8} {:<8} {:<8} {:<8} {:<8} {:<7} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
+                 "Contract", "Equity", "Price", "TimeVal", "TheoVal", "Net", "Insur", "Prem", "Ret1", "Ret2", "Ret3", "Ret4", "Ret5");
+        println!("{:-<140}", "");
+
         for (expiration_date, strikes) in chains.call_exp_date_map {
             for (strike, contracts) in strikes {
                 for contract in contracts {
-                    // Print contract details and calculated values
                     if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
-                        println!("Skipping contract: {}", contract.description);
-                        println!("{:?}", contract);
-                        continue
+                        continue;
                     }
-                    println!(
-                        "\nContract Analysis:\n\
-                         Contract:          {}\n\
-                         Expiration Date:   {}\n\
-                         Strike Price:      ${}\n\
-                         Equity Price:      ${}\n\
-                         Contract Price:    ${}\n\
-                         Time Value:        ${}\n\
-                         Theoretical Value: ${}\n\
-                         Net Position:      ${:.2}\n\
-                         Insurance:         {:.2}%\n\
-                         Premium:           ${:.2}",
-                        contract.description,
-                        expiration_date,
-                        strike,
-                        quote.quote.last_price,
-                        contract.mid().unwrap_or(0.0),
-                        contract.time_value,
-                        contract.theoretical_option_value,
-                        contract.buy_write_cost_basis(quote.quote.last_price).unwrap(),
-                        contract.buy_write_insurance(quote.quote.last_price).unwrap() * 100.0,
-                        contract.buy_write_premium(quote.quote.last_price).unwrap()
+
+                    let analysis = ContractAnalysis {
+                        contract: contract.description.clone(),
+                        expiration_date: expiration_date.clone(),
+                        strike_price: strike.clone(),
+                        equity_price: quote.quote.last_price,
+                        contract_price: contract.mid().unwrap_or(0.0),
+                        time_value: contract.time_value,
+                        theoretical_value: contract.theoretical_option_value,
+                        net_position: contract.buy_write_cost_basis(quote.quote.last_price).unwrap(),
+                        insurance: contract.buy_write_insurance(quote.quote.last_price).unwrap() * 100.0,
+                        premium: contract.buy_write_premium(quote.quote.last_price).unwrap(),
+                        return_1_div: contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 1, None),
+                        return_2_div: contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 2, None),
+                        return_3_div: contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 3, None),
+                        return_4_div: contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 4, None),
+                        return_5_div: contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 5, None),
+                    };
+
+                    println!("{:<30} ${:<7.2} ${:<7.2} ${:<7.2} ${:<7.2} ${:<7.2} {:<7} ${:<7.2} {:<7} {:<7} {:<7} {:<7} {:<7}",
+                             analysis.contract,
+                             analysis.equity_price,
+                             analysis.contract_price,
+                             analysis.time_value,
+                             analysis.theoretical_value,
+                             analysis.net_position,
+                             format!("{:.2}%", analysis.insurance),
+                             analysis.premium,
+                             format!("{:.2}%", analysis.return_1_div * 100.0),
+                             format!("{:.2}%", analysis.return_2_div * 100.0),
+                             format!("{:.2}%", analysis.return_3_div * 100.0),
+                             format!("{:.2}%", analysis.return_4_div * 100.0),
+                             format!("{:.2}%", analysis.return_5_div * 100.0)
                     );
                 }
             }

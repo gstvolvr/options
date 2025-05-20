@@ -1,5 +1,5 @@
 // Top-level struct to handle ticker symbol mapping
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub(crate) struct QuoteResponse {
     // Map of ticker symbols to quote data
     #[serde(flatten)]
@@ -7,7 +7,7 @@ pub(crate) struct QuoteResponse {
 }
 
 // struct based on the following json structure
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 // tell serde to expect cameCase keys in the JSON
 #[serde(rename_all = "camelCase")]
 pub struct QuoteApiResponse {
@@ -24,7 +24,7 @@ pub struct QuoteApiResponse {
     pub regular: Regular,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Reference {
     pub cusip: String,
@@ -38,7 +38,7 @@ pub(crate) struct Reference {
     pub htb_rate: f64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Quote {
     #[serde(rename = "52WeekHigh")]
@@ -77,7 +77,7 @@ pub(crate) struct Quote {
     // pub volatility: f64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Extended {
     pub ask_price: f64,
@@ -114,7 +114,7 @@ pub(crate) struct Fundamental {
     pub pe_ratio: f64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Regular {
     pub regular_market_last_price: f64,
