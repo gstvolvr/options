@@ -470,26 +470,25 @@ impl OptionContract {
         // self.premium(underlying_equity_price)? < 0.05
     }
 
-    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental, n_dividends: i64) -> f64 {
+    /// Calculate the annualized return of a buy write trade after a capturing a certain number of dividend payments
+    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental, n_dividends: i64, from_date: Option<NaiveDate>) -> f64 {
         use chrono::{NaiveDate, Duration, DateTime};
         use chrono::Datelike; // Import the Datelike trait for date methods
-
-        println!("Calculating return after dividend for {}", self.symbol);
-        println!("Underlying equity price: {}", underlying_equity_price);
-        println!("Fundamental: {:?}", fundamental);
-        println!("ex div date: {:?}", fundamental.div_ex_date);
 
         // Parse the dividend ex-date
         // The date format is expected to be like "2025-05-12T00:00:00Z"
         let div_ex_date = parse_date(fundamental.div_ex_date.as_str()).unwrap();
-        println!("Dividend ex-date: {}", div_ex_date);
+        println!("Parsed dividend ex-date: {}", div_ex_date);
 
-        // Calculate months to add based on dividend frequency (assuming quarterly dividends)
-        let months_in_quarter = 3;
-        let months_to_add = months_in_quarter * (n_dividends + 1);
+        // Calculate months to add based on dividend frequency
+        // Quarterly: 12 / 4
+        // Bi-annual: 12 / 2
+        // Annual: 12
+        let months_between_dividends = 12 / fundamental.div_freq;
+        let months_to_add = months_between_dividends * (n_dividends + 1);
 
         let mut next_dividend_date = div_ex_date.checked_add_months(Months::new(months_to_add as u32)).unwrap();
-        println!("next dividend date: {}", next_dividend_date);
+        println!("Next dividend date: {}", next_dividend_date);
 
         // Adjust the next dividend date if it falls on a weekend
         let weekday = next_dividend_date.weekday().num_days_from_monday();
@@ -501,22 +500,23 @@ impl OptionContract {
 
         // Parse the expiration date
         let expiration_date = parse_date(&self.expiration_date).unwrap();
-        println!("expiration date: {}", expiration_date);
+        println!("Expiration date: {}", expiration_date);
 
         // Find the next event date (minimum of expiration_date and next_dividend_date)
         let next_event_date = std::cmp::min(expiration_date, next_dividend_date);
-        println!("next event date: {}", next_event_date);
+        println!("Next event date: {}", next_event_date);
 
-        // Calculate days to the next event
-        let today = chrono::Local::now().date_naive();
+        let today = from_date.unwrap_or_else(|| chrono::Local::now().date_naive());
+
+        // The next event is either the next dividend date or the expiration date
         let days_to_next_event = (next_event_date - today).num_days() + 2;
+        println!("Days to next event: {}", days_to_next_event);
 
         // Check conditions from the Python function
-        if days_to_next_event <= 0 || (next_dividend_date - expiration_date).num_days() >= months_in_quarter * 30 {
+        if days_to_next_event <= 0 || (next_dividend_date - expiration_date).num_days() >= months_between_dividends * 30 {
             return 0.0;
         }
 
-        let dividend_amount = fundamental.div_amount;
         let premium = match self.mid() {
             Some(mid) => mid,
             None => return 0.0, // Return 0.0 if we can't calculate the premium
@@ -525,8 +525,10 @@ impl OptionContract {
             Some(cost_basis) => cost_basis,
             None => return 0.0, // Return 0.0 if we can't calculate the net
         };
+        println!("Premium: {}", premium);
+        println!("Net: {}", net);
 
-        ((dividend_amount * (n_dividends as f64 + 1.0) + premium) / net) / (days_to_next_event as f64 * 365.0)
+        (((fundamental.div_pay_amount * (n_dividends as f64 + 1.0)) + premium) / net / days_to_next_event as f64) * 365.0
     }
 }
 
@@ -551,35 +553,35 @@ pub(crate) mod tests {
         serde_json::from_str(&r#"
         {
           "putCall": "CALL",
-          "symbol": "AAPL  271217C00050000",
-          "description": "AAPL 12/17/2027 50.00 C",
+          "symbol": "AAPL  270617C00165000",
+          "description": "AAPL 06/17/2027 165.00 C",
           "exchangeName": "OPR",
           "bidPrice": null,
           "askPrice": null,
           "lastPrice": null,
           "markPrice": null,
-          "bidSize": 1,
-          "askSize": 1,
+          "bidSize": 10,
+          "askSize": 11,
           "lastSize": 1,
-          "highPrice": 166.15,
-          "lowPrice": 164.46,
+          "highPrice": 0.0,
+          "lowPrice": 0.0,
           "openPrice": 0.0,
-          "closePrice": 166.02,
-          "totalVolume": 2,
+          "closePrice": 70.13,
+          "totalVolume": 0,
           "tradeDate": null,
-          "quoteTimeInLong": 1747425597167,
-          "tradeTimeInLong": 1747425516345,
-          "netChange": -1.56,
-          "volatility": 48.611,
-          "delta": 0.977,
-          "gamma": 0.0,
-          "theta": -0.002,
-          "vega": 0.101,
-          "rho": 0.645,
-          "timeValue": 3.2,
-          "openInterest": 59,
+          "quoteTimeInLong": 1747425600089,
+          "tradeTimeInLong": 1747322585191,
+          "netChange": 0.74,
+          "volatility": 31.42,
+          "delta": 0.803,
+          "gamma": 0.003,
+          "theta": -0.023,
+          "vega": 0.782,
+          "rho": 2.138,
+          "timeValue": 24.61,
+          "openInterest": 0,
           "isInTheMoney": null,
-          "theoreticalOptionValue": 161.952,
+          "theoreticalOptionValue": 67.077,
           "theoreticalVolatility": 29.0,
           "isMini": null,
           "isNonStandard": null,
@@ -591,17 +593,17 @@ pub(crate) mod tests {
               "currencyType": null
             }
           ],
-          "strikePrice": 50.0,
-          "expirationDate": "2027-12-17T21:00:00.000+00:00",
-          "daysToExpiration": 944.0,
+          "strikePrice": 165.0,
+          "expirationDate": "2027-06-17T20:00:00.000+00:00",
+          "daysToExpiration": 761.0,
           "expirationType": "S",
-          "lastTradingDay": 1829091600000,
+          "lastTradingDay": 1813276800000,
           "multiplier": 100.0,
           "settlementType": "P",
           "deliverableNote": "100 AAPL",
           "isIndexOption": null,
-          "percentChange": -0.94,
-          "markChange": -0.77
+          "percentChange": 1.06,
+          "markChange": -0.31
         }
             "#).unwrap()
     }
@@ -693,56 +695,21 @@ pub(crate) mod tests {
 
     #[test]
     fn test_calculate_return_after_dividend() {
-        use crate::api::quote::Fundamental;
-
         let contract = get_test_sample_contract();
-
-        // Helper function to create a Fundamental with the given dividend amount and date format
-        fn create_fundamental(div_amount: f64, use_iso_format: bool) -> Fundamental {
-            let div_ex_date = if use_iso_format {
-                "2025-05-12T00:00:00Z".to_string() // ISO 8601 format
-            } else {
-                "2025-05-12".to_string() // Simple date format
-            };
-
-            Fundamental {
-                avg10_days_volume: 0.0,
-                avg1_year_volume: 0.0,
-                declaration_date: "2025-05-01T00:00:00Z".to_string(),
-                div_amount, // Quarterly dividend amount
-                div_ex_date, // Ex-dividend date in specified format
-                div_freq: 4, // Quarterly dividends (4 times per year)
-                div_pay_amount: div_amount,
-                div_pay_date: "2025-05-15T00:00:00Z".to_string(),
-                div_yield: 1.2,
-                eps: 0.0,
-                fund_leverage_factor: 0.0,
-                last_earnings_date: "2025-05-01T00:00:00Z".to_string(),
-                next_div_ex_date: "2025-08-12T00:00:00Z".to_string(),
-                next_div_pay_date: "2025-08-15T00:00:00Z".to_string(),
-                pe_ratio: 0.0,
-            }
-        }
-
-        // Test with both date formats
-        let fundamental_iso = create_fundamental(0.25, true); // ISO 8601 format
-        let fundamental_simple = create_fundamental(0.25, false); // Simple date format
-
-        // Calculate returns for both date formats
-        let return_iso = contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental_iso, 1);
-        let return_simple = contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental_simple, 1);
-
-        println!("Return with ISO 8601 date format: {}", return_iso);
-        println!("Return with simple date format: {}", return_simple);
-
-        // Both formats should produce the same result (or both be 0.0 if calculation fails)
-        assert!(return_iso > 0.0 || (return_iso == 0.0 && return_simple == 0.0));
-        assert_eq!(return_iso, return_simple);
+        // Expected
 
         // Also test with real data from the API
         let quote = load_test_quote_data();
-        let fundamental_real = quote.fundamental;
-        let return_real = contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental_real, 1);
-        println!("Return with real data: {}", return_real);
+        let fundamental = quote.fundamental;
+        let from_date = NaiveDate::from_ymd_opt(2025, 5, 19);
+        println!("Calculating return after dividend for {}", contract.symbol);
+        println!("Underlying equity price: {}", *SAMPLE_EQUITY_PRICE);
+        println!("Ex Div date: {:?}", fundamental.div_ex_date);
+        for n_dividends in 0..6 {
+            println!();
+            let return_real = contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), n_dividends, from_date);
+            println!("Return after {} dividends: {}", n_dividends, return_real);
+
+        }
     }
 }

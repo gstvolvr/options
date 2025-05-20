@@ -98,9 +98,11 @@ pub(crate) struct Fundamental {
     pub avg10_days_volume: f64,
     pub avg1_year_volume: f64,
     pub declaration_date: String,
+    /// The amount of the dividend paid in 1 year
     pub div_amount: f64,
     pub div_ex_date: String,
     pub div_freq: i64,
+    /// A single payment amount
     pub div_pay_amount: f64,
     pub div_pay_date: String,
     pub div_yield: f64,
