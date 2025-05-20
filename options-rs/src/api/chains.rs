@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use chrono::{Months, NaiveDate};
 use std::str::FromStr;
 use crate::api::quote::Fundamental;
-use crate::utils::parse_date;
+use crate::utils::{parse_date, round_to_decimals};
+use log::debug;
 
 /// TODO:
 /// - Finish writing up docstrings
@@ -478,17 +479,17 @@ impl OptionContract {
         // Parse the dividend ex-date
         // The date format is expected to be like "2025-05-12T00:00:00Z"
         let div_ex_date = parse_date(fundamental.div_ex_date.as_str()).unwrap();
-        println!("Parsed dividend ex-date: {}", div_ex_date);
+        debug!("Parsed dividend ex-date: {}", div_ex_date);
 
         // Calculate months to add based on dividend frequency
         // Quarterly: 12 / 4
         // Bi-annual: 12 / 2
         // Annual: 12
         let months_between_dividends = 12 / fundamental.div_freq;
-        let months_to_add = months_between_dividends * (n_dividends + 1);
+        let months_to_add = months_between_dividends * n_dividends;
 
         let mut next_dividend_date = div_ex_date.checked_add_months(Months::new(months_to_add as u32)).unwrap();
-        println!("Next dividend date: {}", next_dividend_date);
+        debug!("Next dividend date: {}", next_dividend_date);
 
         // Adjust the next dividend date if it falls on a weekend
         let weekday = next_dividend_date.weekday().num_days_from_monday();
@@ -500,55 +501,48 @@ impl OptionContract {
 
         // Parse the expiration date
         let expiration_date = parse_date(&self.expiration_date).unwrap();
-        println!("Expiration date: {}", expiration_date);
+        debug!("Expiration date: {}", expiration_date);
 
         // Find the next event date (minimum of expiration_date and next_dividend_date)
         let next_event_date = std::cmp::min(expiration_date, next_dividend_date);
-        println!("Next event date: {}", next_event_date);
+        debug!("Next event date: {}", next_event_date);
 
         let today = from_date.unwrap_or_else(|| chrono::Local::now().date_naive());
 
         // The next event is either the next dividend date or the expiration date
         let days_to_next_event = (next_event_date - today).num_days() + 2;
-        println!("Days to next event: {}", days_to_next_event);
+        debug!("Days to next event: {}", days_to_next_event);
 
         // Check conditions from the Python function
         if days_to_next_event <= 0 || (next_dividend_date - expiration_date).num_days() >= months_between_dividends * 30 {
             return 0.0;
         }
 
-        let premium = match self.mid() {
-            Some(mid) => mid,
-            None => return 0.0, // Return 0.0 if we can't calculate the premium
+        let premium = match self.buy_write_premium(underlying_equity_price) {
+            Some(premium) => premium,
+            None => return 0.0,
         };
         let net = match self.buy_write_cost_basis(underlying_equity_price) {
             Some(cost_basis) => cost_basis,
             None => return 0.0, // Return 0.0 if we can't calculate the net
         };
-        println!("Premium: {}", premium);
-        println!("Net: {}", net);
+        debug!("Premium: {}", premium);
+        debug!("Net: {}", net);
 
-        (((fundamental.div_pay_amount * (n_dividends as f64 + 1.0)) + premium) / net / days_to_next_event as f64) * 365.0
+        ((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net / days_to_next_event as f64 * 365.0
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use std::fs;
-    use std::path::Path;
     use lazy_static::lazy_static;
-    use reqwest::get;
-    use crate::api::quote::QuoteApiResponse;
     use crate::test_utils;
     use crate::test_utils::load_test_quote_data;
 
     lazy_static!(
         static ref SAMPLE_EQUITY_PRICE: f64 = 207.93;
     );
-    fn round_to_two_decimals(value: f64) -> f64 {
-        (value * 100.0).round() / 100.0
-    }
     fn get_test_sample_contract() -> OptionContract {
         serde_json::from_str(&r#"
         {
@@ -680,7 +674,7 @@ pub(crate) mod tests {
         let contract = get_test_sample_contract();
         assert_eq!(
             3.45,
-            round_to_two_decimals(contract.buy_write_premium(*SAMPLE_EQUITY_PRICE).unwrap())
+            round_to_decimals(contract.buy_write_premium(*SAMPLE_EQUITY_PRICE).unwrap(), Some(2.0))
         )
     }
 
@@ -689,27 +683,38 @@ pub(crate) mod tests {
         let contract = get_test_sample_contract();
         assert_eq!(
             0.27,
-            round_to_two_decimals(contract.buy_write_insurance(*SAMPLE_EQUITY_PRICE).unwrap())
+            round_to_decimals(contract.buy_write_insurance(*SAMPLE_EQUITY_PRICE).unwrap(), Some(2.0))
         )
     }
 
     #[test]
     fn test_calculate_return_after_dividend() {
         let contract = get_test_sample_contract();
-        // Expected
-
-        // Also test with real data from the API
         let quote = load_test_quote_data();
         let fundamental = quote.fundamental;
         let from_date = NaiveDate::from_ymd_opt(2025, 5, 19);
         println!("Calculating return after dividend for {}", contract.symbol);
         println!("Underlying equity price: {}", *SAMPLE_EQUITY_PRICE);
         println!("Ex Div date: {:?}", fundamental.div_ex_date);
-        for n_dividends in 0..6 {
-            println!();
-            let return_real = contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), n_dividends, from_date);
-            println!("Return after {} dividends: {}", n_dividends, return_real);
-
-        }
+        assert_eq!(
+            round_to_decimals(contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), 1, from_date), Some(4.0)),
+            0.836
+        );
+        assert_eq!(
+            round_to_decimals(contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), 2, from_date), Some(4.0)),
+            0.4102
+        );
+        assert_eq!(
+            round_to_decimals(contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), 3, from_date), Some(4.0)),
+            0.2735
+        );
+        assert_eq!(
+            round_to_decimals(contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), 4, from_date), Some(4.0)),
+            0.2078
+        );
+        assert_eq!(
+            round_to_decimals(contract.calculate_return_after_dividend(*SAMPLE_EQUITY_PRICE, fundamental.clone(), 5, from_date), Some(4.0)),
+            0.167
+        );
     }
 }
