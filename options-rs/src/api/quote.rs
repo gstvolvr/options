@@ -40,7 +40,7 @@ pub(crate) struct Reference {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Quote {
+pub struct Quote {
     #[serde(rename = "52WeekHigh")]
     pub fifty_two_week_high: f64,
     #[serde(rename = "52WeekLow")]
@@ -94,7 +94,7 @@ pub(crate) struct Extended {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Fundamental {
+pub struct Fundamental {
     pub avg10_days_volume: f64,
     pub avg1_year_volume: f64,
     pub declaration_date: String,
