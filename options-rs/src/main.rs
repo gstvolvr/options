@@ -1,4 +1,4 @@
-use csv::WriterBuilder;
+use csv::{Writer, WriterBuilder};
 use chrono::{Duration, Utc};
 // use crate::models::dividend::Dividend;
 // use crate::models::options::Options;
@@ -22,29 +22,31 @@ use serde_json::Value;
 static DATA_DIR_PATH: &str = "../data";
 static QUOTES_FILENAME: &str = "schwab_quotes.jsonl";
 static CHAINS_FILENAME: &str = "schwab_chains.jsonl";
+static RETURNS_FILENAME: &str = "schwab_returns.csv";
 static SYMBOLS_FILENAME: &str = "symbols_mini.csv"; // TODO: swap to `symbols.csv` when ready
 
 lazy_static! {
     static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
     static ref CHAINS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, CHAINS_FILENAME);
     static ref SYMBOLS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, SYMBOLS_FILENAME);
+    static ref RETURNS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, RETURNS_FILENAME);
 }
 
 #[tokio::main]
 async fn main() {
     println!("Checking for stored token...");
-    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
-        println!("Found stored token");
-        stored_token
-    } else {
-        println!("No valid token found, obtaining new token...");
-        let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
-        TOKEN_STORAGE.save_token(new_token.clone());
-        println!("New token obtained and saved");
-        new_token
-    };
-
-    let oauth_client = api::auth::OAuthClient::new(token);
+    // let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
+    //     println!("Found stored token");
+    //     stored_token
+    // } else {
+    //     println!("No valid token found, obtaining new token...");
+    //     let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
+    //     TOKEN_STORAGE.save_token(new_token.clone());
+    //     println!("New token obtained and saved");
+    //     new_token
+    // };
+    //
+    // let oauth_client = api::auth::OAuthClient::new(token);
 
     // generating test data
     // let symbol = "AAPL";
@@ -78,10 +80,20 @@ fn read_json_lines<T: DeserializeOwned>(filepath: &str) -> io::Result<Vec<T>> {
 }
 
 async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
-
     let quotes: Vec<QuoteApiResponse> = read_json_lines(&*QUOTES_DATA_PATH)?;
     println!("{:?}", quotes.len());
     let chains: Vec<ChainsApiResponse> = read_json_lines(&*CHAINS_DATA_PATH)?;
+
+    let file = File::create(&*RETURNS_DATA_PATH)?;
+    let mut wtr = WriterBuilder::new().from_writer(file);
+
+    // Write header row
+    wtr.write_record(&[
+        "symbol", "company_name", "industry", "stock_price", "net", "strike_price",
+        "expiration_date", "insurance", "premium", "dividend_amount", "dividend_ex_date",
+        "return_after_1_div", "return_after_2_div", "return_after_3_div",
+        "bid", "mid", "ask", "previous_date"
+    ])?;
 
     for (quote, chain) in quotes.iter().zip(chains.iter()) {
         for (expiration_date, strikes) in &chain.call_exp_date_map {
@@ -92,14 +104,53 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
                     if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
                         continue;
                     }
-                    // Process valid contract here
-                    println!("{:?}", contract.description);
-                    println!("{:?}", contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 1, None));
+
+                    let mid = contract.mid().unwrap();
+                    let net = contract.buy_write_cost_basis(quote.quote.last_price).unwrap();
+                    let insurance = contract.buy_write_insurance(quote.quote.last_price).unwrap();
+                    let premium = contract.buy_write_premium(quote.quote.last_price).unwrap();
+
+                    wtr.write_record(&[
+                        &quote.symbol,
+                        "",
+                        "",
+                        &quote.quote.last_price.to_string(),
+                        &net.to_string(),
+                        &strike_price.to_string(),
+                        expiration_date,
+                        &insurance.to_string(),
+                        &premium.to_string(),
+                        &quote.fundamental.div_amount.to_string(),
+                        &quote.fundamental.div_ex_date,
+                        &contract.calculate_return_after_dividend(
+                            quote.quote.last_price,
+                            quote.fundamental.clone(),
+                            1,
+                            None,
+                        ).to_string(),
+                        &contract.calculate_return_after_dividend(
+                            quote.quote.last_price,
+                            quote.fundamental.clone(),
+                            2,
+                            None,
+                        ).to_string(),
+                        &contract.calculate_return_after_dividend(
+                            quote.quote.last_price,
+                            quote.fundamental.clone(),
+                            3,
+                            None,
+                        ).to_string(),
+                        &contract.bid_price.unwrap_or_default().to_string(),
+                        &mid.to_string(),
+                        &contract.ask_price.unwrap_or_default().to_string(),
+                        ""
+                    ])?;
                 }
             }
         }
     }
 
+    wtr.flush()?;
     Ok(())
 }
 
