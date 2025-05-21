@@ -7,7 +7,8 @@ use options_rs::test_utils;
 use options_rs::api;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::option;
+use std::{io, option};
+use std::io::{BufRead};
 use std::string::ToString;
 use options_rs::api::chains::ChainsApiResponse;
 use options_rs::api::quote::QuoteApiResponse;
@@ -15,10 +16,12 @@ use options_rs::api::schwab::{chains, quote};
 use lazy_static::lazy_static;
 use options_rs::api::auth::OAuthClient;
 use options_rs::api::token_storage::TOKEN_STORAGE;
+use serde_json::Value;
+
 
 static DATA_DIR_PATH: &str = "../data";
-static QUOTES_FILENAME: &str = "schwab_quotes.json";
-static CHAINS_FILENAME: &str = "schwab_chains.json";
+static QUOTES_FILENAME: &str = "schwab_quotes.jsonl";
+static CHAINS_FILENAME: &str = "schwab_chains.jsonl";
 static SYMBOLS_FILENAME: &str = "symbols_mini.csv"; // TODO: swap to `symbols.csv` when ready
 
 lazy_static! {
@@ -49,9 +52,55 @@ async fn main() {
     // let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
     // test_utils::write_test_data(quotes, chains);
 
-    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
-        eprintln!("Error processing symbols file: {}", e);
+    // if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+    //     eprintln!("Error processing symbols file: {}", e);
+    // }
+    calculate_returns().await.expect("Failed to calculate returns");
+}
+
+fn read_json_lines<T: DeserializeOwned>(filepath: &str) -> io::Result<Vec<T>> {
+    let file = File::open(filepath)?;
+    let reader = io::BufReader::new(file);
+    let mut objects = Vec::new();
+
+    for line in reader.lines() {
+        let mut line = line?;
+        if line.ends_with(',') {
+            line.pop();
+        }
+        if !line.trim().is_empty() {
+            let value: T = serde_json::from_str(&line)?;
+            objects.push(value);
+        }
     }
+
+    Ok(objects)
+}
+
+async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
+
+    let quotes: Vec<QuoteApiResponse> = read_json_lines(&*QUOTES_DATA_PATH)?;
+    println!("{:?}", quotes.len());
+    let chains: Vec<ChainsApiResponse> = read_json_lines(&*CHAINS_DATA_PATH)?;
+
+    for (quote, chain) in quotes.iter().zip(chains.iter()) {
+        for (expiration_date, strikes) in &chain.call_exp_date_map {
+            println!("Processing expiration date: {:?}", expiration_date);
+            for (strike_price, contracts) in strikes {
+                println!("Processing strike price: {:?}", strike_price);
+                for contract in contracts {
+                    if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
+                        continue;
+                    }
+                    // Process valid contract here
+                    println!("{:?}", contract.description);
+                    println!("{:?}", contract.calculate_return_after_dividend(quote.quote.last_price, quote.fundamental.clone(), 1, None));
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(), Box<dyn std::error::Error>> {
@@ -92,6 +141,7 @@ fn create_api_data_files() -> () {
 }
 
 use std::io::Write;
+use serde::de::DeserializeOwned;
 
 fn append_api_data(quotes: QuoteApiResponse, chains: ChainsApiResponse) -> () {
     let mut quotes_file = OpenOptions::new()
