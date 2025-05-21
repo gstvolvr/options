@@ -108,7 +108,7 @@ pub(crate) struct Fundamental {
     pub div_yield: f64,
     pub eps: f64,
     pub fund_leverage_factor: f64,
-    pub last_earnings_date: String,
+    pub last_earnings_date: Option<String>,
     pub next_div_ex_date: String,
     pub next_div_pay_date: String,
     pub pe_ratio: f64,

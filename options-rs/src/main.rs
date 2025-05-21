@@ -6,10 +6,26 @@ use chrono::{Duration, Utc};
 use options_rs::test_utils;
 use options_rs::api;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::option;
+use std::string::ToString;
+use options_rs::api::chains::ChainsApiResponse;
+use options_rs::api::quote::QuoteApiResponse;
 use options_rs::api::schwab::{chains, quote};
+use lazy_static::lazy_static;
+use options_rs::api::auth::OAuthClient;
 use options_rs::api::token_storage::TOKEN_STORAGE;
+
+static DATA_DIR_PATH: &str = "../data";
+static QUOTES_FILENAME: &str = "schwab_quotes.json";
+static CHAINS_FILENAME: &str = "schwab_chains.json";
+static SYMBOLS_FILENAME: &str = "symbols_mini.csv"; // TODO: swap to `symbols.csv` when ready
+
+lazy_static! {
+    static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
+    static ref CHAINS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, CHAINS_FILENAME);
+    static ref SYMBOLS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, SYMBOLS_FILENAME);
+}
 
 #[tokio::main]
 async fn main() {
@@ -27,10 +43,76 @@ async fn main() {
 
     let oauth_client = api::auth::OAuthClient::new(token);
 
-    let symbol = "AAPL";
-    let quotes = quote(symbol, &oauth_client).await.expect("Failed to get quotes");
-    let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
-    test_utils::write_test_data(quotes, chains);
+    // generating test data
+    // let symbol = "AAPL";
+    // let quotes = quote(symbol, &oauth_client).await.expect("Failed to get quotes");
+    // let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
+    // test_utils::write_test_data(quotes, chains);
+
+    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+        eprintln!("Error processing symbols file: {}", e);
+    }
+}
+
+async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(), Box<dyn std::error::Error>> {
+    let file = OpenOptions::new()
+        .read(true)
+        .open(&*SYMBOLS_DATA_PATH)?;
+
+    // reset data files
+    create_api_data_files();
+    let mut rdr = csv::Reader::from_reader(file);
+
+    for result in rdr.records() {
+        let record = result?;
+        let symbol = record.get(0).unwrap();
+        println!("Processing symbol: {:?}", symbol);
+        let quotes = quote(symbol, &oauth_client).await.expect("Failed to get quotes");
+        let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
+        append_api_data(quotes, chains)
+    };
+
+    Ok(())
+}
+
+fn create_api_data_files() -> () {
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&*QUOTES_DATA_PATH)
+        .expect("Failed to open quotes file");
+
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&*CHAINS_DATA_PATH)
+        .expect("Failed to open quotes file");
+}
+
+use std::io::Write;
+
+fn append_api_data(quotes: QuoteApiResponse, chains: ChainsApiResponse) -> () {
+    let mut quotes_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&*QUOTES_DATA_PATH)
+        .expect("Failed to open quotes file");
+
+    let mut chains_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&*CHAINS_DATA_PATH)
+        .expect("Failed to open chains file");
+
+    quotes_file
+        .write_all(format!("{},\n", serde_json::to_string(&quotes).expect("Failed to serialize quotes")).as_bytes())
+        .expect("Failed to write quotes");
+
+    chains_file
+        .write_all(format!("{},\n", serde_json::to_string(&chains).expect("Failed to serialize chains")).as_bytes())
+        .expect("Failed to write chains");
 }
 
 
