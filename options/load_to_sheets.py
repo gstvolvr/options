@@ -70,7 +70,7 @@ def main(data_path):
         body=body).execute()
 
     row_number = 2
-    with open(f'{data_path}/returns.csv', 'r') as f:
+    with open(f'{data_path}/schwab_returns.csv', 'r') as f:
         returns = csv.DictReader(f)
 
         for i, row in enumerate(returns):
@@ -82,7 +82,7 @@ def main(data_path):
                     else:
                         ordered_result.append(None)
                 else:
-                    value = type_func(row[col]) if row[col] else ''
+                    value = type_func(row[col]) if col in row and row[col] else ''
                     ordered_result.append(value)
             values.append(ordered_result)
 
