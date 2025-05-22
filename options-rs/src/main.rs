@@ -23,7 +23,7 @@ static DATA_DIR_PATH: &str = "../data";
 static QUOTES_FILENAME: &str = "schwab_quotes.jsonl";
 static CHAINS_FILENAME: &str = "schwab_chains.jsonl";
 static RETURNS_FILENAME: &str = "schwab_returns.csv";
-static SYMBOLS_FILENAME: &str = "symbols_mini.csv"; // TODO: swap to `symbols.csv` when ready
+static SYMBOLS_FILENAME: &str = "symbols.csv"; // TODO: swap to `symbols.csv` when ready
 
 lazy_static! {
     static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
@@ -35,18 +35,18 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
     println!("Checking for stored token...");
-    // let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
-    //     println!("Found stored token");
-    //     stored_token
-    // } else {
-    //     println!("No valid token found, obtaining new token...");
-    //     let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
-    //     TOKEN_STORAGE.save_token(new_token.clone());
-    //     println!("New token obtained and saved");
-    //     new_token
-    // };
-    //
-    // let oauth_client = api::auth::OAuthClient::new(token);
+    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
+        println!("Found stored token");
+        stored_token
+    } else {
+        println!("No valid token found, obtaining new token...");
+        let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
+        TOKEN_STORAGE.save_token(new_token.clone());
+        println!("New token obtained and saved");
+        new_token
+    };
+    
+    let oauth_client = api::auth::OAuthClient::new(token);
 
     // generating test data
     // let symbol = "AAPL";
@@ -54,9 +54,9 @@ async fn main() {
     // let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
     // test_utils::write_test_data(quotes, chains);
 
-    // if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
-    //     eprintln!("Error processing symbols file: {}", e);
-    // }
+    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+        eprintln!("Error processing symbols file: {}", e);
+    }
     calculate_returns().await.expect("Failed to calculate returns");
 }
 
@@ -81,7 +81,7 @@ fn read_json_lines<T: DeserializeOwned>(filepath: &str) -> io::Result<Vec<T>> {
 
 async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
     let quotes: Vec<QuoteApiResponse> = read_json_lines(&*QUOTES_DATA_PATH)?;
-    println!("{:?}", quotes.len());
+    // println!("{:?}", quotes.len());
     let chains: Vec<ChainsApiResponse> = read_json_lines(&*CHAINS_DATA_PATH)?;
 
     let file = File::create(&*RETURNS_DATA_PATH)?;
@@ -164,12 +164,39 @@ async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(),
     let mut rdr = csv::Reader::from_reader(file);
 
     for result in rdr.records() {
-        let record = result?;
-        let symbol = record.get(0).unwrap();
+        let record = match result {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("Error reading record: {}", e);
+                continue;
+            }
+        };
+        let symbol = match record.get(0) {
+            Some(s) => s,
+            None => {
+                eprintln!("No symbol found in record");
+                continue;
+            }
+        };
         println!("Processing symbol: {:?}", symbol);
-        let quotes = quote(symbol, &oauth_client).await.expect("Failed to get quotes");
-        let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
-        append_api_data(quotes, chains)
+
+        let quotes = match quote(symbol, &oauth_client).await {
+            Ok(q) => q,
+            Err(e) => {
+                eprintln!("Failed to get quotes for {}: {}", symbol, e);
+                continue;
+            }
+        };
+
+        let chains = match chains(symbol, &oauth_client).await {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Failed to get chains for {}: {}", symbol, e);
+                continue;
+            }
+        };
+
+        append_api_data(quotes, chains);
     };
 
     Ok(())
