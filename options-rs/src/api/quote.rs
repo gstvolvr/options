@@ -12,7 +12,7 @@ pub(crate) struct QuoteResponse {
 #[serde(rename_all = "camelCase")]
 pub struct QuoteApiResponse {
     pub asset_main_type: String,
-    pub asset_sub_type: String,
+    pub asset_sub_type: Option<String>,
     pub symbol: String,
     pub quote_type: String,
     pub realtime: bool,
@@ -46,19 +46,19 @@ pub struct Quote {
     #[serde(rename = "52WeekLow")]
     pub fifty_two_week_low: f64,
     #[serde(rename = "askMICId")]
-    pub ask_mic_id: String,
+    pub ask_mic_id: Option<String>,
     pub ask_price: f64,
     pub ask_size: i64,
     pub ask_time: i64,
     #[serde(rename = "bidMICId")]
-    pub bid_mic_id: String,
+    pub bid_mic_id: Option<String>,
     pub bid_price: f64,
     pub bid_size: i64,
     pub bid_time: i64,
     pub close_price: f64,
     pub high_price: f64,
     #[serde(rename = "lastMICId")]
-    pub last_mic_id: String,
+    pub last_mic_id: Option<String>,
     pub last_price: f64,
     pub last_size: i64,
     pub low_price: f64,
