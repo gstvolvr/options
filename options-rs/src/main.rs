@@ -35,18 +35,18 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
     println!("Checking for stored token...");
-    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
-        println!("Found stored token");
-        stored_token
-    } else {
-        println!("No valid token found, obtaining new token...");
-        let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
-        TOKEN_STORAGE.save_token(new_token.clone());
-        println!("New token obtained and saved");
-        new_token
-    };
-    
-    let oauth_client = api::auth::OAuthClient::new(token);
+    // let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
+    //     println!("Found stored token");
+    //     stored_token
+    // } else {
+    //     println!("No valid token found, obtaining new token...");
+    //     let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
+    //     TOKEN_STORAGE.save_token(new_token.clone());
+    //     println!("New token obtained and saved");
+    //     new_token
+    // };
+    //
+    // let oauth_client = api::auth::OAuthClient::new(token);
 
     // generating test data
     // let symbol = "AAPL";
@@ -54,9 +54,9 @@ async fn main() {
     // let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
     // test_utils::write_test_data(quotes, chains);
 
-    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
-        eprintln!("Error processing symbols file: {}", e);
-    }
+    // if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+    //     eprintln!("Error processing symbols file: {}", e);
+    // }
     calculate_returns().await.expect("Failed to calculate returns");
 }
 
@@ -81,7 +81,6 @@ fn read_json_lines<T: DeserializeOwned>(filepath: &str) -> io::Result<Vec<T>> {
 
 async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
     let quotes: Vec<QuoteApiResponse> = read_json_lines(&*QUOTES_DATA_PATH)?;
-    // println!("{:?}", quotes.len());
     let chains: Vec<ChainsApiResponse> = read_json_lines(&*CHAINS_DATA_PATH)?;
 
     let file = File::create(&*RETURNS_DATA_PATH)?;
@@ -89,17 +88,17 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
 
     // Write header row
     wtr.write_record(&[
-        "symbol", "company_name", "industry", "stock_price", "net", "strike_price",
-        "expiration_date", "insurance", "premium", "dividend_amount", "dividend_ex_date",
-        "return_after_1_div", "return_after_2_div", "return_after_3_div",
-        "bid", "mid", "ask", "previous_date"
+        "symbol", "company_name", "industry", "last", "net", "strike_price",
+        "expiration_date", "insurance", "premium", "dividend_quarterly_amount", "dividend_ex_date",
+        "return_after_1_div", "return_after_2_div", "return_after_3_div", "return_after_4_div", "return_after_5_div",
+        "return_after_last_div", "bid", "mid", "ask", "previous_date"
     ])?;
 
     for (quote, chain) in quotes.iter().zip(chains.iter()) {
         for (expiration_date, strikes) in &chain.call_exp_date_map {
-            println!("Processing expiration date: {:?}", expiration_date);
+            // println!("Processing expiration date: {:?}", expiration_date);
             for (strike_price, contracts) in strikes {
-                println!("Processing strike price: {:?}", strike_price);
+                // println!("Processing strike price: {:?}", strike_price);
                 for contract in contracts {
                     if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
                         continue;
@@ -109,6 +108,20 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
                     let net = contract.buy_write_cost_basis(quote.quote.last_price).unwrap();
                     let insurance = contract.buy_write_insurance(quote.quote.last_price).unwrap();
                     let premium = contract.buy_write_premium(quote.quote.last_price).unwrap();
+                    let returns = &(1..=5)
+                            .map(|n| contract.calculate_return_after_dividend(
+                                quote.quote.last_price,
+                                quote.fundamental.clone(),
+                                n,
+                                None,
+                            ).to_string())
+                            .collect::<Vec<String>>();
+
+                    let last_return = returns.iter()
+                        .rev()
+                        .find(|s| !s.is_empty() && s != &"0")
+                        .unwrap_or(&"0".to_string())
+                        .to_string();
 
                     wtr.write_record(&[
                         &quote.symbol,
@@ -122,24 +135,12 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
                         &premium.to_string(),
                         &quote.fundamental.div_amount.to_string(),
                         &quote.fundamental.div_ex_date,
-                        &contract.calculate_return_after_dividend(
-                            quote.quote.last_price,
-                            quote.fundamental.clone(),
-                            1,
-                            None,
-                        ).to_string(),
-                        &contract.calculate_return_after_dividend(
-                            quote.quote.last_price,
-                            quote.fundamental.clone(),
-                            2,
-                            None,
-                        ).to_string(),
-                        &contract.calculate_return_after_dividend(
-                            quote.quote.last_price,
-                            quote.fundamental.clone(),
-                            3,
-                            None,
-                        ).to_string(),
+                        &returns[0],
+                        &returns[1],
+                        &returns[2],
+                        &returns[3],
+                        &returns[4],
+                        &last_return,
                         &contract.bid_price.unwrap_or_default().to_string(),
                         &mid.to_string(),
                         &contract.ask_price.unwrap_or_default().to_string(),
