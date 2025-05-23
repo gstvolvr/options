@@ -108,25 +108,3 @@ pub async fn get_initial_token() -> Result<String, Box<dyn std::error::Error>> {
     println!("Initial token: {}", token_result.access_token().secret());
     Ok(token_result.access_token().secret().to_string())
 }
-
-// #[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//     // Get the initial token
-//     let initial_token = get_initial_token().await?;
-//     let oauth_client = OAuthClient::new(initial_token);
-//
-//     // Make an authenticated request
-//     // let response = oauth_client.get("https://api.example.com/data").await?;
-//     // println!("Response: {:?}", response);
-//     //
-//     // // Refresh the token when needed
-//     // let new_token = "new_access_token".to_string();
-//     // oauth_client.refresh_token(new_token).await;
-//     //
-//     // // Make another authenticated request with the new token
-//     // let response = oauth_client.get("https://api.example.com/data").await?;
-//     // println!("Response: {:?}", response);
-//     //
-//     // Ok(())
-// }
-//
