@@ -1,4 +1,5 @@
 use std::error::Error;
+use log::debug;
 use crate::api::quote::QuoteApiResponse;
 use crate::api::auth::{OAuthClient, MARKET_DATA_API_URL};
 use crate::api::chains::ChainsApiResponse;
@@ -6,18 +7,18 @@ use crate::api::chains::ChainsApiResponse;
 pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiResponse, Box<dyn Error>> {
     // not including `fields` in the query returns everything
     let api_url = format!("{}/quotes?symbols={}&indicative=false", MARKET_DATA_API_URL, symbol);
-    println!("Retrieving data from: {}", &api_url);
+    debug!("Retrieving data from: {}", &api_url);
     let response = oauth_client.get(&api_url).await?;
 
     if response.status().is_success() {
         let text = response.text().await?;
-        println!("quote: {}", text);
+        debug!("quote: {}", text);
         let json: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text)?;
 
         // Take first entry since we only request one symbol
         if let Some((_symbol, quote_data)) = json.into_iter().next() {
-            // println!("symbol: {:?}", _symbol);
-            // println!("{:?}", quote_data);
+            debug!("symbol: {:?}", _symbol);
+            debug!("{:?}", quote_data);
             let api_response: QuoteApiResponse = serde_json::from_value(quote_data)?;
             Ok(api_response)
         } else {
@@ -33,20 +34,19 @@ pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiR
 
 pub async fn chains(symbol: &str, oauth_client: &OAuthClient) -> Result<ChainsApiResponse, Box<dyn Error>> {
     let api_url = format!("{}/chains?symbol={}&contractType=CALL&includeUnderlyingQuote=true&strategy=ANALYTICAL&range=ITM&daysToExpiration=540", MARKET_DATA_API_URL, symbol);
-    println!("Retrieving data from: {}", &api_url);
+    // debug!("Retrieving data from: {}", &api_url);
     let response = oauth_client.get(&api_url).await?;
 
     if response.status().is_success() {
         let text = response.text().await?;
-        // println!("{:?}", text);
         let api_response: ChainsApiResponse = serde_json::from_str(&text)?;
         // Pretty print the JSON response
-        // println!("{:?}", api_response);
+        // debug!("{:?}", api_response);
         Ok(api_response)
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        println!("Error response body: {}", error_text);
+        debug!("Error response body: {}", error_text);
         Err(format!("Request failed with status: {}", status).into())
     }
 }
