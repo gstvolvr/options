@@ -7,6 +7,7 @@ import gc
 import time
 import socket
 import logging
+import math
 from functools import lru_cache
 
 socket.setdefaulttimeout(300)
@@ -18,6 +19,13 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SECRET_PATH = os.getenv('GOOGLE_SHEETS_CLIENT_SECRET')
 SLEEP_SECONDS = 0.5  # Reduced sleep time between API calls
 
+
+def clean_value(value):
+    """Clean values before sending to Google Sheets"""
+    if isinstance(value, float):
+        if math.isinf(value) or math.isnan(value):
+            return ''
+    return value
 
 def upload_to_sheets(service, body, row_number, range_name):
     """Upload data to Google Sheets with retry logic"""
@@ -101,16 +109,22 @@ def main(data_path):
                     ordered_result.append(get_company_info(row['symbol'], col))
                 else:
                     value = type_func(row[col]) if col in row and row[col] else ''
-                    ordered_result.append(value)
+                    ordered_result.append(clean_value(value))
             values.append(ordered_result)
 
+            # Only sort once before uploading
+            values = sorted(values, key=lambda r: (r[0], r[6], r[5]))
+            body = {'values': list(map(list, values))}
+
             if i % BATCH_SIZE == 0 and i != 0:
-                # Only sort once before uploading
-                values = sorted(values, key=lambda r: (r[0], r[6], r[5]))
-                body = {'values': list(map(list, values))}
 
                 # Use the upload_to_sheets function with retry logic
-                row_number = upload_to_sheets(service, body, row_number, RANGE_NAME)
+                try:
+                    row_number = upload_to_sheets(service, body, row_number, RANGE_NAME)
+                except Exception as e:
+                    logging.error(f"Error uploading batch: {e}")
+                    logging.error(f"Problem row data: {body['values'][-1]}")
+                    # continue
 
                 values = []
                 # Only collect garbage every few batches to reduce overhead
@@ -119,9 +133,13 @@ def main(data_path):
                 # see usage limits: https://developers.google.com/sheets/api/limits
                 time.sleep(SLEEP_SECONDS)
         # Sort and upload the final batch with retry logic
-        values = sorted(values, key=lambda r: (r[0], r[6], r[5]))
-        body = {'values': list(map(list, values))}
-        upload_to_sheets(service, body, row_number, RANGE_NAME)
+        print("finished here")
+        try:
+            upload_to_sheets(service, body, row_number, RANGE_NAME)
+        except Exception as e:
+            logging.error(f"Error uploading batch: {e}")
+            logging.error(f"Problem row data: {body['values'][-1]}")
+
 
 if __name__ == '__main__':
     main(data_path=os.getenv('DATA_PATH'))
