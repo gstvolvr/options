@@ -473,7 +473,8 @@ impl OptionContract {
         )
     }
 
-    /// Calculate the annualized return of a buy write trade after a capturing a certain number of dividend payments
+    /// Calculate the annualized return of a buy write trade after capturing a certain number of dividend payments
+    /// TODO: add captured dividend amount and captured dividend dates to the logs
     pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental, n_dividends: i64, from_date: Option<NaiveDate>) -> f64 {
         use chrono::{NaiveDate, Duration, DateTime};
         use chrono::Datelike; // Import the Datelike trait for date methods
@@ -523,9 +524,9 @@ impl OptionContract {
         let days_to_next_ex_dividend = (next_div_ex_date - today).num_days();
 
         // Check conditions from
-        // if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 {
-        //     return 0.0;
-        // }
+        if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 {
+            return 0.0;
+        }
 
         let premium = match self.buy_write_premium(underlying_equity_price) {
             Some(premium) => premium,
@@ -546,7 +547,8 @@ impl OptionContract {
         debug!("{:<25} {} (In {} days)", "Next event date:", next_event_date, days_to_next_event);
         debug!("{:<25} {} (In {} days)", "Next ex dividend date:", next_div_ex_date, days_to_next_ex_dividend);
         debug!("{:<25} ${:.2}", "Option mid point:", self.mid().unwrap_or(0.0));
-        debug!("{:<25} ${:.2}", "Underlying equity price:", underlying_equity_price);
+        debug!("{:<25} ${:.2}", "Equity price:", underlying_equity_price);
+        debug!("{:<25} ${:.2}", "Equity yearly dividend:", fundamental.div_amount);
         debug!("{:<25} ${:.2}", "Buy write premium:", premium);
         debug!("{:<25} ${:.2}", "Net:", net);
         debug!("{:<25} {:.2}%", format!("Return after {} dividend:", n_dividends), return_after_dividend*100.0);
