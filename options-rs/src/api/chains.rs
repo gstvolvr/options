@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{Months, NaiveDate};
 use std::str::FromStr;
 use crate::api::quote::Fundamental;
-use crate::utils::{parse_date, round_to_decimals};
+use crate::utils::{get_previous_weekday, parse_date, round_to_decimals};
 use log::debug;
 
 /// TODO:
@@ -464,11 +464,13 @@ impl OptionContract {
 
     /// Sometimes we get invalid values from the API
     pub fn should_ignore(&self, underlying_equity_price: f64) -> Result<bool, String> {
-        Ok(self.buy_write_cost_basis(underlying_equity_price).is_none())
-        // self.bid_price.is_none() ||
-        //     self.ask_price.is_none()
-        // underlying_equity_price * 0.50 > self.strike_price ||
-        // self.premium(underlying_equity_price)? < 0.05
+        Ok(
+            self.buy_write_cost_basis(underlying_equity_price).is_none() ||
+            //
+            underlying_equity_price * 0.50 > self.strike_price ||
+            // Sometimes a premium
+            self.buy_write_premium(underlying_equity_price).unwrap_or(0.0) < 0.05
+        )
     }
 
     /// Calculate the annualized return of a buy write trade after a capturing a certain number of dividend payments
@@ -479,42 +481,34 @@ impl OptionContract {
         // Parse the dividend ex-date
         // The date format is expected to be like "2025-05-12T00:00:00Z"
         let div_ex_date = parse_date(fundamental.div_ex_date.as_str()).unwrap();
-        debug!("Parsed dividend ex-date: {}", div_ex_date);
 
         // Calculate months to add based on dividend frequency
         // Quarterly: 12 / 4
         // Bi-annual: 12 / 2
         // Annual: 12
         let months_between_dividends = 12 / fundamental.div_freq;
-        let months_to_add = months_between_dividends * n_dividends;
+        // even though we acquire the dividend at the ex date, it's not until the following "event" that the position could be called
+        let months_until_next_dividend_capture = months_between_dividends * n_dividends;
+        let months_until_next_call_event = months_between_dividends * (n_dividends + 1);
 
-        let mut next_dividend_date = div_ex_date.checked_add_months(Months::new(months_to_add as u32)).unwrap();
-        debug!("Next dividend date: {}", next_dividend_date);
-
-        // Adjust the next dividend date if it falls on a weekend
-        let weekday = next_dividend_date.weekday().num_days_from_monday();
-        if weekday == 6 { // Sunday
-            next_dividend_date = next_dividend_date + Duration::days(1);
-        } else if weekday == 5 { // Saturday
-            next_dividend_date = next_dividend_date + Duration::days(2);
-        }
+        let mut next_dividend_date = div_ex_date.checked_add_months(Months::new(months_until_next_dividend_capture as u32)).unwrap();
+        let mut next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32)).unwrap();
+        // You can't capture a dividend or get options called during the weekend
+        let next_dividend_date = get_previous_weekday(next_dividend_date);
+        let next_event_date = get_previous_weekday(next_event_date);
 
         // Parse the expiration date
         let expiration_date = parse_date(&self.expiration_date).unwrap();
-        debug!("Expiration date: {}", expiration_date);
-
-        // Find the next event date (minimum of expiration_date and next_dividend_date)
-        let next_event_date = std::cmp::min(expiration_date, next_dividend_date);
-        debug!("Next event date: {}", next_event_date);
+        // Find the next event date
+        let next_event_date = std::cmp::min(expiration_date, next_event_date);
 
         let today = from_date.unwrap_or_else(|| chrono::Local::now().date_naive());
 
         // The next event is either the next dividend date or the expiration date
-        let days_to_next_event = (next_event_date - today).num_days() + 2;
-        debug!("Days to next event: {}", days_to_next_event);
+        let days_to_next_event = (next_event_date - today).num_days();
 
         // Check conditions from the Python function
-        if days_to_next_event <= 0 || (next_dividend_date - expiration_date).num_days() >= months_between_dividends * 30 {
+        if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 {
             return 0.0;
         }
 
@@ -526,10 +520,23 @@ impl OptionContract {
             Some(cost_basis) => cost_basis,
             None => return 0.0, // Return 0.0 if we can't calculate the net
         };
-        debug!("Premium: {}", premium);
-        debug!("Net: {}", net);
 
-        ((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net / days_to_next_event as f64 * 365.0
+        let return_after_dividend = (((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net) / days_to_next_event as f64 * 365.0;
+        debug!("{}", "-".repeat(50));
+        debug!("Calculating return for {} after {} dividend", self.symbol, n_dividends);
+        debug!("{}", "-".repeat(50));
+        debug!("{:<25} {}", "Today:", today);
+        debug!("{:<25} {}", "Expiration date:", expiration_date);
+        debug!("{:<25} {}", "Parsed dividend ex-date:", div_ex_date);
+        debug!("{:<25} {}", "Next event date:", next_event_date);
+        debug!("{:<25} {}", "Next ex dividend date:", next_dividend_date);
+        debug!("{:<25} {}", "Days to next event:", days_to_next_event);
+        debug!("{:<25} {}", "Option mid point:", self.mid().unwrap_or(0.0));
+        debug!("{:<25} {}", "Underlying equity price:", underlying_equity_price);
+        debug!("{:<25} ${:.2}", "Buy write premium:", premium);
+        debug!("{:<25} ${:.2}", "Net:", net);
+        debug!("{:<25} {:.2}%", format!("Return after {} dividend:", n_dividends), return_after_dividend*100.0);
+        return_after_dividend
     }
 }
 
@@ -642,6 +649,8 @@ pub(crate) mod tests {
         println!("{:-<140}", "");
 
         for (expiration_date, strikes) in chains.call_exp_date_map {
+            // This comes in the format of `2025-07-18:56`
+            let expiration_date: String = expiration_date.split(':').collect();
             for (strike, contracts) in strikes {
                 for contract in contracts {
                     if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
