@@ -1,4 +1,6 @@
 #![allow(warnings)]
+
+use std::cmp::max;
 use std::collections::HashMap;
 use chrono::{Months, NaiveDate};
 use std::str::FromStr;
@@ -490,29 +492,37 @@ impl OptionContract {
         // Bi-annual: 12 / 2
         // Annual: 12
         let months_between_dividends = 12 / fundamental.div_freq;
+        let captured_div = (fundamental.div_amount / fundamental.div_freq as f64) * n_dividends as f64;
 
         let mut months_until_next_call_event;
         let mut next_event_date;
         let mut next_div_ex_date;
+        let mut final_div_ex_date;
 
         // If the ex-dividend date has been announced, and is after "today" then that's the first
         // possible dividend that can be captured
         if today < div_ex_date {
+            let months_until_last_dividend_capture = max(months_between_dividends * (n_dividends - 1), 0);
             next_div_ex_date = div_ex_date;
             months_until_next_call_event = months_between_dividends * n_dividends;
+            // months_until_next_call_event = months_between_dividends * n_dividends;
             next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32)).unwrap();
+            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture as u32)).unwrap();
         } else {
             // even though we acquire the dividend at the ex date, it's not until the following "event" that the position could be called
             let months_until_next_dividend_capture = months_between_dividends * n_dividends;
+            let months_until_last_dividend_capture = months_between_dividends * (n_dividends - 1);
             months_until_next_call_event = months_between_dividends * (n_dividends + 1);
 
             next_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_next_dividend_capture as u32)).unwrap();
             next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32)).unwrap();
+            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture as u32)).unwrap();
             // You can't capture a dividend or get options called during the weekend
             next_div_ex_date = get_previous_weekday(next_div_ex_date);
         }
 
-        let next_event_date = get_previous_weekday(next_event_date);
+        final_div_ex_date = get_previous_weekday(final_div_ex_date);
+        next_event_date = get_previous_weekday(next_event_date);
 
         // Parse the expiration date
         let expiration_date = parse_date(&self.expiration_date).unwrap();
@@ -522,6 +532,7 @@ impl OptionContract {
         // The next event is either the next dividend date or the expiration date
         let days_to_next_event = (next_event_date - today).num_days();
         let days_to_next_ex_dividend = (next_div_ex_date - today).num_days();
+        let days_to_final_ex_dividend = (final_div_ex_date - today).num_days();
 
         // Check conditions from
         if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 {
@@ -537,20 +548,23 @@ impl OptionContract {
             None => return 0.0, // Return 0.0 if we can't calculate the net
         };
 
-        let return_after_dividend = (((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net) / days_to_next_event as f64 * 365.0;
+        let return_after_dividend = ((((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net) / days_to_next_event as f64) * 365.0;
         debug!("{}", "-".repeat(70));
         debug!("Calculating return for {} after {} dividend", self.symbol, n_dividends);
         debug!("{}", "-".repeat(70));
         debug!("{:<25} {}", "Today:", today);
         debug!("{:<25} {}", "Expiration date:", expiration_date);
-        debug!("{:<25} {}", "Current ex dividend:", div_ex_date);
+        debug!("{:<25} {}", "Initial dividend:", div_ex_date);
+        debug!("{:<25} {} (In {} days)", "First dividend date:", next_div_ex_date, days_to_next_ex_dividend);
+        debug!("{:<25} {} (In {} days)", "Last dividend date:", final_div_ex_date, days_to_final_ex_dividend);
         debug!("{:<25} {} (In {} days)", "Next event date:", next_event_date, days_to_next_event);
-        debug!("{:<25} {} (In {} days)", "Next ex dividend date:", next_div_ex_date, days_to_next_ex_dividend);
         debug!("{:<25} ${:.2}", "Option mid point:", self.mid().unwrap_or(0.0));
+        debug!("{:<25} ${:.2}", "Captured dividend:", captured_div);
         debug!("{:<25} ${:.2}", "Equity price:", underlying_equity_price);
         debug!("{:<25} ${:.2}", "Equity yearly dividend:", fundamental.div_amount);
+        debug!("{:<25} {:.2}%", "Buy write insurance:", self.buy_write_insurance(underlying_equity_price).unwrap_or(0.0) * 100.0);
         debug!("{:<25} ${:.2}", "Buy write premium:", premium);
-        debug!("{:<25} ${:.2}", "Net:", net);
+        debug!("{:<25} ${:.2}", "Buy write cost basis:", net);
         debug!("{:<25} {:.2}%", format!("Return after {} dividend:", n_dividends), return_after_dividend*100.0);
         return_after_dividend
     }
