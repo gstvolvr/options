@@ -15,7 +15,7 @@ pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiR
         debug!("quote: {}", text);
         let json: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text)?;
 
-        // Take first entry since we only request one symbol
+        // Take the first entry since we only request one symbol
         if let Some((_symbol, quote_data)) = json.into_iter().next() {
             debug!("symbol: {:?}", _symbol);
             debug!("{:?}", quote_data);
@@ -34,14 +34,14 @@ pub async fn quote(symbol: &str, oauth_client: &OAuthClient) -> Result<QuoteApiR
 
 pub async fn chains(symbol: &str, oauth_client: &OAuthClient) -> Result<ChainsApiResponse, Box<dyn Error>> {
     let api_url = format!("{}/chains?symbol={}&contractType=CALL&includeUnderlyingQuote=true&strategy=ANALYTICAL&range=ITM&daysToExpiration=540", MARKET_DATA_API_URL, symbol);
-    // debug!("Retrieving data from: {}", &api_url);
+    debug!("Retrieving data from: {}", &api_url);
     let response = oauth_client.get(&api_url).await?;
 
     if response.status().is_success() {
         let text = response.text().await?;
         let api_response: ChainsApiResponse = serde_json::from_str(&text)?;
         // Pretty print the JSON response
-        // debug!("{:?}", api_response);
+        debug!("{:?}", api_response);
         Ok(api_response)
     } else {
         let status = response.status();
