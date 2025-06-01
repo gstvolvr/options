@@ -1,5 +1,5 @@
 use csv::{Writer, WriterBuilder};
-use chrono::{Duration, Utc};
+use chrono::{Duration, Utc, NaiveDateTime, NaiveDate};
 // use crate::models::dividend::Dividend;
 // use crate::models::options::Options;
 // use options_rs::utils::calculate_return_after_dividends;
@@ -17,6 +17,11 @@ use lazy_static::lazy_static;
 use options_rs::api::auth::OAuthClient;
 use options_rs::api::token_storage::TOKEN_STORAGE;
 use serde_json::Value;
+use tokio::sync::Mutex;
+use tokio::task;
+use tokio::time::{sleep, Duration as TokioDuration};
+use std::sync::Arc;
+use serde::de::DeserializeOwned;
 
 
 static DATA_DIR_PATH: &str = "../data";
@@ -24,39 +29,42 @@ static QUOTES_FILENAME: &str = "schwab_quotes.jsonl";
 static CHAINS_FILENAME: &str = "schwab_chains.jsonl";
 static RETURNS_FILENAME: &str = "schwab_returns.csv";
 static SYMBOLS_FILENAME: &str = "symbols.csv"; // TODO: swap to `symbols.csv` when ready
+static COMPANIES_FILENAME: &str = "companies.csv";
 
 lazy_static! {
     static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
     static ref CHAINS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, CHAINS_FILENAME);
     static ref SYMBOLS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, SYMBOLS_FILENAME);
     static ref RETURNS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, RETURNS_FILENAME);
+    static ref COMPANIES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, COMPANIES_FILENAME);
 }
 
 #[tokio::main]
 async fn main() {
-    println!("Checking for stored token...");
-    // let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
-    //     println!("Found stored token");
-    //     stored_token
-    // } else {
-    //     println!("No valid token found, obtaining new token...");
-    //     let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
-    //     TOKEN_STORAGE.save_token(new_token.clone());
-    //     println!("New token obtained and saved");
-    //     new_token
-    // };
-    //
-    // let oauth_client = api::auth::OAuthClient::new(token);
+    env_logger::Builder::from_default_env().format_timestamp(None).init();
+    log::debug!("Checking for stored token...");
+    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
+        println!("Found stored token");
+        stored_token
+    } else {
+        println!("No valid token found, obtaining new token...");
+        let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
+        TOKEN_STORAGE.save_token(new_token.clone());
+        println!("New token obtained and saved");
+        new_token
+    };
 
-    // generating test data
+    let oauth_client = api::auth::OAuthClient::new(token);
+
+    //// generating test data
     // let symbol = "AAPL";
     // let quotes = quote(symbol, &oauth_client).await.expect("Failed to get quotes");
     // let chains = chains(symbol, &oauth_client).await.expect("Failed to get chains");
     // test_utils::write_test_data(quotes, chains);
 
-    // if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
-    //     eprintln!("Error processing symbols file: {}", e);
-    // }
+    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+        eprintln!("Error processing symbols file: {}", e);
+    }
     calculate_returns().await.expect("Failed to calculate returns");
 }
 
@@ -79,9 +87,21 @@ fn read_json_lines<T: DeserializeOwned>(filepath: &str) -> io::Result<Vec<T>> {
     Ok(objects)
 }
 
-async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
+async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let quotes: Vec<QuoteApiResponse> = read_json_lines(&*QUOTES_DATA_PATH)?;
     let chains: Vec<ChainsApiResponse> = read_json_lines(&*CHAINS_DATA_PATH)?;
+
+    // Load companies data
+    let companies_file = File::open(&*COMPANIES_DATA_PATH)?;
+    let mut companies_reader = csv::Reader::from_reader(companies_file);
+    let mut companies: HashMap<String, (String, String)> = HashMap::new();
+
+    for result in companies_reader.records() {
+        let record = result?;
+        if let (Some(symbol), Some(company_name), Some(industry)) = (record.get(0), record.get(1), record.get(3)) {
+            companies.insert(symbol.to_string(), (company_name.to_string(), industry.to_string()));
+        }
+    }
 
     let file = File::create(&*RETURNS_DATA_PATH)?;
     let mut wtr = WriterBuilder::new().from_writer(file);
@@ -95,11 +115,20 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
     ])?;
 
     for (quote, chain) in quotes.iter().zip(chains.iter()) {
-        for (expiration_date, strikes) in &chain.call_exp_date_map {
+        for (composite_expiration_date, strikes) in &chain.call_exp_date_map {
+            // This comes in the format of `2025-07-18:56`
+            let expiration_date = &composite_expiration_date[..10];
             // println!("Processing expiration date: {:?}", expiration_date);
             for (strike_price, contracts) in strikes {
                 // println!("Processing strike price: {:?}", strike_price);
                 for contract in contracts {
+                    // TODO: remove these two cases
+                    // if quote.symbol != "NEE" {
+                    //     continue
+                    // }
+                    // if contract.strike_price != 55.0 || expiration_date != "2026-01-16" {
+                    //     continue
+                    // }
                     if contract.should_ignore(quote.quote.last_price).unwrap_or(true) {
                         continue;
                     }
@@ -113,7 +142,7 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
                                 quote.quote.last_price,
                                 quote.fundamental.clone(),
                                 n,
-                                None,
+                                Some(NaiveDate::from_ymd(2025, 5, 26)),
                             ).to_string())
                             .collect::<Vec<String>>();
 
@@ -123,18 +152,23 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap_or(&"0".to_string())
                         .to_string();
 
+                    // Look up company_name and industry from companies HashMap
+                    let (company_name, industry) = companies.get(&quote.symbol)
+                        .map(|(name, ind)| (name.as_str(), ind.as_str()))
+                        .unwrap_or(("", ""));
+
                     wtr.write_record(&[
                         &quote.symbol,
-                        "",
-                        "",
+                        company_name,
+                        industry,
                         &quote.quote.last_price.to_string(),
                         &net.to_string(),
                         &strike_price.to_string(),
-                        expiration_date,
+                        &expiration_date.clone(),
                         &insurance.to_string(),
                         &premium.to_string(),
                         &quote.fundamental.div_amount.to_string(),
-                        &quote.fundamental.div_ex_date,
+                        &parse_date(&quote.fundamental.div_ex_date).map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|_| quote.fundamental.div_ex_date.clone()),
                         &returns[0],
                         &returns[1],
                         &returns[2],
@@ -155,7 +189,7 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let file = OpenOptions::new()
         .read(true)
         .open(&*SYMBOLS_DATA_PATH)?;
@@ -220,7 +254,7 @@ fn create_api_data_files() -> () {
 }
 
 use std::io::Write;
-use serde::de::DeserializeOwned;
+use options_rs::utils::parse_date;
 
 fn append_api_data(quotes: QuoteApiResponse, chains: ChainsApiResponse) -> () {
     let mut quotes_file = OpenOptions::new()
