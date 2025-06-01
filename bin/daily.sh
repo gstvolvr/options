@@ -11,6 +11,6 @@ export $(cat $HOME/.dev/.env | xargs)
 source $APP_DIR/.venv/bin/activate
 
 cd $APP_DIR/options-rs
-cargo run --package options-rs --bin options-rs
+time cargo run --package options-rs --bin options-rs
 cd $APP_DIR
 time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/load_to_sheets.py
