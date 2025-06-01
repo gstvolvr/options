@@ -76,16 +76,6 @@ def main(data_path):
         'quote_date': str,
     })
 
-    with open(f'{data_path}/companies.csv', 'r') as f:
-        companies = {row['symbol']: row for row in csv.DictReader(f)}
-
-    @lru_cache(maxsize=1000)
-    def get_company_info(symbol, field):
-        """Cache company lookups to avoid repeated dictionary access"""
-        if symbol in companies and field in companies[symbol]:
-            return companies[symbol][field]
-        return None
-
     values = []
 
     creds = service_account.Credentials.from_service_account_file(SECRET_PATH, scopes=SCOPES)
@@ -105,11 +95,8 @@ def main(data_path):
         for i, row in enumerate(returns):
             ordered_result = []
             for col, type_func in cols.items():
-                if col in ['company_name', 'industry']:
-                    ordered_result.append(get_company_info(row['symbol'], col))
-                else:
-                    value = type_func(row[col]) if col in row and row[col] else ''
-                    ordered_result.append(clean_value(value))
+                value = type_func(row[col]) if col in row and row[col] else ''
+                ordered_result.append(clean_value(value))
             values.append(ordered_result)
 
             # Only sort once before uploading
