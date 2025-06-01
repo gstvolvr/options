@@ -1,8 +1,5 @@
 use csv::{Writer, WriterBuilder};
 use chrono::{Duration, Utc, NaiveDateTime, NaiveDate};
-// use crate::models::dividend::Dividend;
-// use crate::models::options::Options;
-// use options_rs::utils::calculate_return_after_dividends;
 use options_rs::test_utils;
 use options_rs::api;
 use std::collections::HashMap;
@@ -22,22 +19,9 @@ use tokio::task;
 use tokio::time::{sleep, Duration as TokioDuration};
 use std::sync::Arc;
 use serde::de::DeserializeOwned;
+use options_rs::config::{QUOTES_DATA_PATH, CHAINS_DATA_PATH, COMPANIES_DATA_PATH, RETURNS_DATA_PATH, SYMBOLS_DATA_PATH};
 
 
-static DATA_DIR_PATH: &str = "../data";
-static QUOTES_FILENAME: &str = "schwab_quotes.jsonl";
-static CHAINS_FILENAME: &str = "schwab_chains.jsonl";
-static RETURNS_FILENAME: &str = "schwab_returns.csv";
-static SYMBOLS_FILENAME: &str = "symbols.csv"; // TODO: swap to `symbols.csv` when ready
-static COMPANIES_FILENAME: &str = "companies.csv";
-
-lazy_static! {
-    static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
-    static ref CHAINS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, CHAINS_FILENAME);
-    static ref SYMBOLS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, SYMBOLS_FILENAME);
-    static ref RETURNS_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, RETURNS_FILENAME);
-    static ref COMPANIES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, COMPANIES_FILENAME);
-}
 
 #[tokio::main]
 async fn main() {
@@ -279,77 +263,3 @@ fn append_api_data(quotes: QuoteApiResponse, chains: ChainsApiResponse) -> () {
 }
 
 
-
-// fn _process(record: &Options, dividend: &Dividend) -> Option<Options> {
-//     if record.premium() < 0.05 {
-//         return None
-//     }
-//
-//     let mut options = Options::new(record.clone());
-//
-//     options.return_after_1_div = Some(calculate_return_after_dividends(&record, dividend, 1));
-//     options.return_after_2_div = Some(calculate_return_after_dividends(&record, dividend, 2));
-//     options.return_after_3_div = Some(calculate_return_after_dividends(&record, dividend, 3));
-//     options.return_after_4_div = Some(calculate_return_after_dividends(&record, dividend, 4));
-//     options.return_after_5_div = Some(calculate_return_after_dividends(&record, dividend, 5));
-//     options.return_after_6_div = Some(calculate_return_after_dividends(&record, dividend, 6));
-//
-//     Some(options)
-// }
-
-
-// fn update_returns() -> Result<(), Box<dyn std::error::Error>> {
-//     let mut return_records: Vec<Options> = vec![];
-//     let option_records: Vec<Options> = utils::get_options()?;
-//
-//
-//     let dividend_map: HashMap<String, Dividend> = match utils::get_dividend_map() {
-//         Ok(map) => {
-//             map
-//         },
-//         Err(e) => {
-//             println!("Something is up: {}", e);
-//             return Err(e)
-//         }
-//     };
-//
-//     for record in &option_records {
-//         let today = Utc::now().date_naive();
-//
-//         // we only want to process things in the next 20 or so months
-//         let expiration_date = record.expiration_date();
-//         if expiration_date > today + Duration::days(30*20) {
-//             println!("The expiration date is too far out: {:?}", expiration_date);
-//             continue
-//         }
-//
-//         if record.last * 0.50 > record.strike_price {
-//             println!("The strike price is too high compared to last: {:?} vs {:?}", record.strike_price, record.last);
-//             continue
-//         }
-//
-//         if let Some(dividend) = dividend_map.get(&record.symbol) {
-//             if let Some(returns) = _process(&record, dividend) {
-//                 // println!("{:?}", returns);
-//                 return_records.push(returns)
-//             }
-//         } else {
-//             // println!("No dividend found for symbol: {:?}", record.symbol);
-//             continue
-//         }
-//     }
-//     println!("{:?}", return_records.len());
-//
-//     let file = File::create("../data/rust_returns.csv")?;
-//     let mut wtr = WriterBuilder::new().from_writer(file);
-//     for record in &return_records {
-//         wtr.serialize(record).map_err(|e| {
-//             println!("Failed to serialize record: {}", e);
-//             e
-//         })?;
-//
-//     }
-//     wtr.flush()?;
-//
-//     Ok(())
-// }
