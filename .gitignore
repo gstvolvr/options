@@ -19,5 +19,7 @@ conf/env.sh
 *.pem
 *.crt
 *.key
+*282500*.json
+*key*.json
 options-rs/target
 options-rs/Cargo.lock
