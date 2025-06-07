@@ -9,6 +9,7 @@ pub static SYMBOLS_FILENAME: &str = "symbols.csv"; // TODO: swap to `symbols.csv
 pub static COMPANIES_FILENAME: &str = "companies.csv";
 pub static SSL_CERT_PATH: &str = "../127.0.0.1.pem";
 pub static SSL_CERT_KEY_PATH: &str = "../127.0.0.1-key.pem";
+pub static CLOUD_PROJECT_ID: &str = "options-282500";
 
 lazy_static! {
     pub static ref QUOTES_DATA_PATH: String = format!("{}/{}", DATA_DIR_PATH, QUOTES_FILENAME);
