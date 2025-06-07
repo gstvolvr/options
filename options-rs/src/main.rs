@@ -11,7 +11,7 @@ use options_rs::api::chains::ChainsApiResponse;
 use options_rs::api::quote::QuoteApiResponse;
 use options_rs::api::schwab::{chains, quote};
 use lazy_static::lazy_static;
-use options_rs::api::auth::OAuthClient;
+use options_rs::api::auth::{authenticate, OAuthClient};
 use options_rs::api::token_storage::TOKEN_STORAGE;
 use serde_json::{json, Map, Value};
 use tokio::sync::Mutex;
@@ -19,31 +19,23 @@ use tokio::task;
 use tokio::time::{sleep, Duration as TokioDuration};
 use std::sync::Arc;
 use serde::de::DeserializeOwned;
-use options_rs::config::{QUOTES_DATA_PATH, CHAINS_DATA_PATH, COMPANIES_DATA_PATH, RETURNS_DATA_PATH, SYMBOLS_DATA_PATH, RETURNS_JSON_DATA_PATH};
+use options_rs::config::{QUOTES_DATA_PATH, CLOUD_PROJECT_ID, CHAINS_DATA_PATH, COMPANIES_DATA_PATH, RETURNS_DATA_PATH, SYMBOLS_DATA_PATH, RETURNS_JSON_DATA_PATH};
 
 
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_default_env().format_timestamp(None).init();
-    log::debug!("Checking for stored token...");
-    let token = if let Some(stored_token) = TOKEN_STORAGE.get_token() {
-        println!("Found stored token");
-        stored_token
-    } else {
-        println!("No valid token found, obtaining new token...");
-        let new_token = api::auth::get_initial_token().await.expect("Failed to get token");
-        TOKEN_STORAGE.save_token(new_token.clone());
-        println!("New token obtained and saved");
-        new_token
-    };
+    debug!("Checking for stored token...");
 
-    let oauth_client = api::auth::OAuthClient::new(token);
+    let oauth_client = authenticate().await?;
 
-    // if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
-    //     eprintln!("Error processing symbols file: {}", e);
-    // }
+    if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
+        eprintln!("Error processing symbols file: {}", e);
+    }
     calculate_returns().await.expect("Failed to calculate returns");
+
+    Ok(())
 }
 
 
@@ -264,7 +256,9 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
 
                     // Append to already initialized JSON file
                     let doc = returns.to_firestore_document(project_id);
-                    append_returns_data(doc);
+                    if vec!["AAPL", "NVDA"].contains(&returns.symbol.as_str()) {
+                        append_returns_data(doc);
+                    }
                 }
             }
         }
@@ -357,7 +351,7 @@ fn append_returns_data(returns: Value) -> () {
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&*RETURNS_DATA_PATH)
+        .open(&*RETURNS_JSON_DATA_PATH)
         .expect("Failed to open returns file");
     file.write_all(format!("{}\n", serde_json::to_string(&returns).expect("Failed to serialize returns")).as_bytes())
         .expect("Failed to write returns");
