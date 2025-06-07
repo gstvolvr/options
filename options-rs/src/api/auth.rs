@@ -2,9 +2,8 @@
 //! Schwab Documentation: https://developer.schwab.com/user-guides/get-started/authenticate-with-oauth
 
 use url::Url;
-use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
-use oauth2::{url, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl};
+use oauth2::{url, AuthUrl, AuthorizationCode, basic::BasicClient, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl, RefreshToken, RefreshTokenRequest};
 use reqwest::{Client, Error};
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -14,14 +13,21 @@ use tokio::net::{TcpListener};
 use std::process::Command;
 use lazy_static::lazy_static;
 use std::fs::File;
+use std::future::Future;
 use std::path::Path;
 use rustls::{Certificate as RustlsCertificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use tokio_rustls::TlsAcceptor;
 use std::io::BufReader;
-use crate::config::{SSL_CERT_KEY_PATH, SSL_CERT_PATH};
-
-
+use std::pin::Pin;
+use crate::api::quote;
+use crate::config::{SSL_CERT_KEY_PATH, SSL_CERT_PATH, CLOUD_PROJECT_ID};
+use google_cloud_gax::paginator::ItemPaginator as _;
+use google_cloud_secretmanager_v1::client::SecretManagerService;
+use google_cloud_secretmanager_v1::model::{Secret, SecretPayload};
+use log::debug;
+use crate::api;
+use crate::api::schwab::quote;
 
 pub const MARKET_DATA_API_URL: &str = "https://api.schwabapi.com/marketdata/v1";
 pub const TOKEN_URL: &str = "https://api.schwabapi.com/v1/oauth/token";
@@ -72,7 +78,7 @@ fn extract_code(url: String) -> Result<String, &'static str> {
     }
 }
 
-// Open the default browser with the given URL
+/// Open the default browser with the given URL
 fn open_browser(url: &str) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     {
@@ -100,7 +106,7 @@ lazy_static! {
     static ref AUTH_CODE: Mutex<Option<String>> = Mutex::new(None);
 }
 
-// Use existing certificate files created by mkcert
+/// Get SSL certificates created by mkcert
 fn get_certificate_paths() -> Result<(String, String), Box<dyn std::error::Error>> {
     // Check if certificate files exist
     if !Path::new(SSL_CERT_PATH).exists() || !Path::new(SSL_CERT_KEY_PATH).exists() {
@@ -234,13 +240,112 @@ async fn start_callback_server() -> Result<String, Box<dyn std::error::Error>> {
     }
 }
 
+pub async fn authenticate() -> Result<OAuthClient, Box<dyn std::error::Error>> {
+    authenticate_with_retry(true, false, 0).await
+}
+
+#[allow(clippy::boxed_local)]
+async fn authenticate_with_retry(with_refresh: bool, with_schwab: bool, try_number: i32) -> Result<OAuthClient, Box<dyn std::error::Error>> {
+    let client = SecretManagerService::builder().build().await?;
+    debug!("Authentication attempt number: {try_number}");
+
+    let mut items = client
+        .list_secrets()
+        .set_parent(format!("projects/{CLOUD_PROJECT_ID}"))
+        .by_item();
+
+    let mut access_secret = None;
+    let mut refresh_secret = None;
+    while let Some(item) = items.next().await {
+        let item = item?;
+        debug!("Secret: {}", item.name);
+        if item.name.contains("ACCESS") {
+            access_secret = Some(item);
+        } else if item.name.contains("REFRESH") {
+            refresh_secret = Some(item);
+        }
+    }
+    let access_secret = access_secret.ok_or("No access secret found")?;
+    let refresh_secret = refresh_secret.ok_or("No refresh secret found")?;
+
+    let access_version = client.access_secret_version();
+    let access_version = access_version.set_name(&(access_secret.name.clone() + "/versions/latest").clone()).send().await?;
+    let access_token_bytes = access_version.payload.ok_or("No payload")?.data;
+    let mut access_token = String::from_utf8(access_token_bytes.to_vec())?;
+    let refresh_version = client.access_secret_version().set_name(&(refresh_secret.name.clone() + "/versions/latest")).send().await?;
+    let refresh_token_bytes = refresh_version.payload.ok_or("No payload")?.data;
+    let refresh_token = String::from_utf8(refresh_token_bytes.to_vec())?;
+
+    if with_schwab {
+        let (access_token_str, refresh_token_str) = api::auth::get_tokens_from_schwab().await.expect("Failed to get token");
+        let mut access_payload = SecretPayload::default();
+        access_payload.data = access_token_str.as_bytes().to_vec().into();
+        client.add_secret_version()
+            .set_parent(access_secret.name)
+            .set_payload(access_payload).send().await?;
+        let mut refresh_payload = SecretPayload::default();
+        refresh_payload.data = refresh_token_str.as_bytes().to_vec().into();
+        client.add_secret_version()
+            .set_parent(refresh_secret.name)
+            .set_payload(refresh_payload).send().await?;
+        debug!("New token obtained and saved");
+    } else if with_refresh {
+        access_token = get_refreshed_access_token_from_schwab(refresh_token).await?;
+        let mut access_payload = SecretPayload::default();
+        access_payload.data = access_token.as_bytes().to_vec().into();
+        client.add_secret_version()
+            .set_parent(access_secret.name)
+            .set_payload(access_payload);
+        debug!("Exchanged refresh token for new access token");
+    }
+
+    let oauth_client = OAuthClient::new(access_token);
+
+    // Contact the Schwab API and see if our current access token works
+    match quote("AAPL", &oauth_client).await {
+        Ok(_) => {
+            eprintln!("Successfully connected to API");
+            Ok(oauth_client)
+        },
+        // If the access token fails then set the refresh token
+        Err(e) => {
+            eprintln!("Failed to connect to API: {}", e);
+            // if authenticating with Schwab didn't work then raise an error
+            if with_schwab {
+                return Err(e.into());
+            // if we haven't attempted to use the refresh token, try that first
+            } else if !with_refresh {
+                Box::pin(authenticate_with_retry(true, false, try_number + 1)).await
+            // if refreshing the token fails, then fallback to doing authentication with Schwab
+            } else if !with_schwab {
+                Box::pin(authenticate_with_retry(false, true, try_number + 1)).await
+            } else {
+                Err(e.into())
+            }
+        },
+    }
+}
+
+pub async fn get_refreshed_access_token_from_schwab(refresh_token: String) -> Result<String, Box<dyn std::error::Error>> {
+    let client_id = ClientId::new(env::var("SCHWAB_CLIENT_ID").expect("Missing CLIENT_ID"));
+    let client_secret = ClientSecret::new(env::var("SCHWAB_CLIENT_SECRET").expect("Missing CLIENT_SECRET"));
+    let auth_url = AuthUrl::new(AUTH_URL.to_string())?;
+    let token_url = TokenUrl::new(TOKEN_URL.to_string())?;
+
+    let token_response = BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
+        .exchange_refresh_token(&RefreshToken::new(refresh_token))
+        .request_async(oauth2::reqwest::async_http_client)
+        .await?;
+    Ok(token_response.access_token().secret().to_string())
+}
+
 // Follow OAuth flow with automatic browser opening and callback handling
 // This function will:
 // 1. Generate an authorization URL
 // 2. Open the user's default browser to that URL
 // 3. Start a local server to listen for the OAuth callback
 // 4. Exchange the authorization code for an access token
-pub async fn get_initial_token() -> Result<String, Box<dyn std::error::Error>> {
+pub async fn get_tokens_from_schwab() -> Result<(String, String), Box<dyn std::error::Error>> {
     let client_id = ClientId::new(env::var("SCHWAB_CLIENT_ID").expect("Missing CLIENT_ID"));
     let client_secret = ClientSecret::new(env::var("SCHWAB_CLIENT_SECRET").expect("Missing CLIENT_SECRET"));
     let auth_url = AuthUrl::new(AUTH_URL.to_string())?;
@@ -259,13 +364,14 @@ pub async fn get_initial_token() -> Result<String, Box<dyn std::error::Error>> {
         .add_scope(Scope::new("readonly".to_string()))
         .url();
 
-    println!("Opening browser to: {}", auth_url);
 
-    // Start the callback server in the background
-    println!("Waiting for authorization...");
+    println!("Opening browser to: {}", auth_url);
 
     // Open the browser to the authorization URL
     open_browser(auth_url.as_ref())?;
+
+    // Start the callback server in the background
+    println!("Waiting for authorization...");
 
     // Wait for the callback with the authorization code
     let auth_code = start_callback_server().await?;
@@ -277,6 +383,8 @@ pub async fn get_initial_token() -> Result<String, Box<dyn std::error::Error>> {
         .request_async(async_http_client)
         .await?;
 
-    println!("Initial token: {}", token_result.access_token().secret());
-    Ok(token_result.access_token().secret().to_string())
+    // eprintln!("Initial token: {}", token_result.access_token().secret());
+    let access_token = token_result.access_token().secret().to_string();
+    let refresh_token = token_result.refresh_token().expect("refresh token").secret().to_string();
+    Ok((access_token, refresh_token))
 }
