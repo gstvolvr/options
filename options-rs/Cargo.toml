@@ -23,7 +23,9 @@ base64 = "0.21.7"
 lazy_static = "1.4.0"
 log = "0.4.21"
 env_logger = "0.11"
-# rcgen dependency removed as we're using mkcert-generated certificates
+# experimental APIs
+google-cloud-secretmanager-v1 = {  version = "^0.3.0" }
+google-cloud-gax = { version = "^0.22.0", features = ["unstable-stream"] }
 
 [lib]
 path = "src/lib.rs"
