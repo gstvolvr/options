@@ -468,9 +468,10 @@ impl OptionContract {
     pub fn should_ignore(&self, underlying_equity_price: f64) -> Result<bool, String> {
         Ok(
             self.buy_write_cost_basis(underlying_equity_price).is_none() ||
-            //
             underlying_equity_price * 0.50 > self.strike_price ||
-            // Sometimes a premium
+            // Don't bother with positions that expire within a quarter
+            self.days_to_expiration <= 90.0 ||
+            // Sometimes a premium is unrealistic
             self.buy_write_premium(underlying_equity_price).unwrap_or(0.0) < 0.05
         )
     }
