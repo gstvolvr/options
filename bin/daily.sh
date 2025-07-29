@@ -23,5 +23,5 @@ time RUST_LOG=info $APP_DIR/options-rs/target/release/options-rs
 echo "Starting data load to Google Sheets"
 time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/load_to_sheets.py
 
-echo "Starting data load to Cloud Firestore"
+#echo "Starting data load to Cloud Firestore"
 #time PYTHONPATH=$APP_DIR python3 $APP_DIR/options/load_to_firestore.py
