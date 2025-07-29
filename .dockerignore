@@ -1,0 +1,51 @@
+# Ignore sensitive files
+*.json
+!options-rs/src/api/test_data/*.json
+
+# Ignore local development files
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignore data files (these should be mounted as volumes)
+data/
+*.csv
+*.pickle
+
+# Ignore notebooks and temporary files
+*.ipynb
+tmp.*
+Untitled.*
+wget-log
+
+# Ignore certificates
+*.pem
+*.crt
+*.key
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore documentation
+README.md

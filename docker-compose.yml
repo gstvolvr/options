@@ -1,0 +1,19 @@
+services:
+  options:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the .env file for environment variables
+      - ./.env:/app/.env:ro
+      # Mount credential files if needed
+      - ./secrets-manager-key.json:/app/secrets-manager-key.json:ro
+      # Mount data directory for persistent storage
+      - ./data:/app/data
+    environment:
+      # Set environment variables directly if needed
+      - GOOGLE_SHEETS_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_SHEETS_CLIENT_SECRET=/app/secrets-manager-key.json
+      - DATA_PATH=/app/data
+    # Restart policy - adjust as needed
+    restart: "no"
