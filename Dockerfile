@@ -1,15 +1,25 @@
-FROM python:3.9-slim-bullseye
+FROM rust:latest as builder
+
+WORKDIR /app
+COPY options-rs/Cargo.toml options-rs/Cargo.lock options-rs/
+COPY options-rs/src/ options-rs/src/
+
+# Build the Rust application
+RUN cd options-rs && cargo build --release
+
+FROM python:3.11-slim-bookworm
 
 # Install required system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory
 WORKDIR /app
 
-# Create rust binary directory (will be mounted or built separately)
-RUN mkdir -p options-rs/target/release
+# Copy the built Rust binary from the builder stage
+COPY --from=builder /app/options-rs/target/release/options-rs /app/options-rs/target/release/options-rs
 
 # Copy Python requirements and install dependencies
 COPY requirements.txt .

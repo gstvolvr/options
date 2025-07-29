@@ -1,25 +1,18 @@
-use csv::{Writer, WriterBuilder};
-use chrono::{Duration, Utc, NaiveDateTime, NaiveDate};
+use csv::WriterBuilder;
+use chrono::NaiveDate;
 use options_rs::test_utils;
-use options_rs::api;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::{io, option};
+use std::io;
 use std::io::{BufRead};
 use std::string::ToString;
 use options_rs::api::chains::ChainsApiResponse;
 use options_rs::api::quote::QuoteApiResponse;
 use options_rs::api::schwab::{chains, quote};
-use lazy_static::lazy_static;
 use options_rs::api::auth::{authenticate, OAuthClient};
-use options_rs::api::token_storage::TOKEN_STORAGE;
 use serde_json::{json, Map, Value};
-use tokio::sync::Mutex;
-use tokio::task;
-use tokio::time::{sleep, Duration as TokioDuration};
-use std::sync::Arc;
 use serde::de::DeserializeOwned;
-use options_rs::config::{QUOTES_DATA_PATH, CLOUD_PROJECT_ID, CHAINS_DATA_PATH, COMPANIES_DATA_PATH, RETURNS_DATA_PATH, SYMBOLS_DATA_PATH, RETURNS_JSON_DATA_PATH};
+use options_rs::config::{QUOTES_DATA_PATH, CHAINS_DATA_PATH, COMPANIES_DATA_PATH, RETURNS_DATA_PATH, SYMBOLS_DATA_PATH, RETURNS_JSON_DATA_PATH};
 
 
 
@@ -180,7 +173,7 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
     let mut wtr = WriterBuilder::new().from_writer(file);
     // JSON writer
     let json_file = File::create(&*RETURNS_JSON_DATA_PATH)?;
-    let mut json_wtr = serde_json::Serializer::new(json_file);
+    let _json_wtr = serde_json::Serializer::new(json_file);
     let project_id: &str = "options";
     create_returns_data_files();
 
@@ -292,7 +285,7 @@ async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(),
                 continue;
             }
         };
-        println!("Processing symbol: {:?}", symbol);
+        info!("Processing symbol: {:?}", symbol);
 
         let quotes_data = match quote(symbol, &oauth_client).await {
             Ok(q) => q,
@@ -342,8 +335,7 @@ fn create_returns_data_files() -> () {
 }
 
 use std::io::Write;
-use axum::routing::future::InfallibleRouteFuture;
-use log::debug;
+use log::{debug, info};
 use serde::{Serialize, Deserialize};
 use options_rs::utils::parse_date;
 

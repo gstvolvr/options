@@ -11,8 +11,7 @@ services:
       # Mount data directory for persistent storage
       - ./data:/app/data
     environment:
-      # Set environment variables directly if needed
-      - GOOGLE_SHEETS_ID=${GOOGLE_SHEETS_ID}
+      # Environment variables are now loaded from .env file and Google Cloud Secret Manager
       - GOOGLE_SHEETS_CLIENT_SECRET=/app/secrets-manager-key.json
       - DATA_PATH=/app/data
     # Restart policy - adjust as needed
