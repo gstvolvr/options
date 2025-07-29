@@ -28,9 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY bin/ bin/
 COPY options/ options/
-
-# Create data directory (will be mounted as volume)
-RUN mkdir -p data
+COPY data/ data/
 
 # Create directory for virtual environment (not actually used in Docker, but referenced in script)
 RUN mkdir -p .venv/bin

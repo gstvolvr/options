@@ -14,7 +14,13 @@ if [ -f "/app/.env" ]; then
 fi
 
 # Set Google Cloud credentials path for Docker
-export GOOGLE_APPLICATION_CREDENTIALS="/app/secrets-manager-key.json"
+# In Cloud Run, use the service account; locally use the key file
+if [ ! -f "/app/secrets-manager-key.json" ]; then
+  echo "Using Cloud Run service account for authentication"
+  unset GOOGLE_APPLICATION_CREDENTIALS
+else
+  export GOOGLE_APPLICATION_CREDENTIALS="/app/secrets-manager-key.json"
+fi
 
 echo "Starting Schwab API requests"
 cd $APP_DIR/options-rs
