@@ -28,9 +28,17 @@ wheels/
 *.egg
 
 # Ignore data files (these should be mounted as volumes)
-data/
-*.csv
-*.pickle
+# data/
+# *.csv
+# *.pickle
+
+# For Cloud Run, we include data files in the image
+# Exclude large generated files but keep essential data
+data/schwab_chains.jsonl
+data/schwab_quotes.jsonl
+data/schwab_returns.csv
+data/schwab_returns.jsonl
+data/*.pickle
 
 # Ignore notebooks and temporary files
 *.ipynb

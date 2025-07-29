@@ -61,34 +61,15 @@ fi
 
 # Step 5: Create Cloud Run Job
 echo "☁️  Creating Cloud Run Job..."
-gcloud run jobs replace - <<EOF
-apiVersion: run.googleapis.com/v1
-kind: Job
-metadata:
-  name: $JOB_NAME
-  annotations:
-    run.googleapis.com/launch-stage: BETA
-spec:
-  template:
-    spec:
-      template:
-        spec:
-          containers:
-          - image: $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY_NAME/$IMAGE_NAME:latest
-            env:
-            - name: RUST_LOG
-              value: info
-            - name: GOOGLE_CLOUD_PROJECT
-              value: $PROJECT_ID
-            resources:
-              limits:
-                cpu: "1"
-                memory: "2Gi"
-          restartPolicy: OnFailure
-          timeoutSeconds: 1800
-      parallelism: 1
-      completions: 1
-EOF
+gcloud run jobs create $JOB_NAME \
+    --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY_NAME/$IMAGE_NAME:latest \
+    --region $REGION \
+    --memory 2Gi \
+    --cpu 1 \
+    --task-timeout 1800 \
+    --parallelism 1 \
+    --set-env-vars RUST_LOG=info,GOOGLE_CLOUD_PROJECT=$PROJECT_ID \
+    --max-retries 3
 
 echo "✅ Cloud Run Job created"
 
