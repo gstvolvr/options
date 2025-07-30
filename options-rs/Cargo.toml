@@ -28,3 +28,6 @@ google-cloud-gax = { version = "^0.22.0", features = ["unstable-stream"] }
 
 [lib]
 path = "src/lib.rs"
+
+[dev-dependencies]
+tempfile = "3.13"
