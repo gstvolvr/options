@@ -6,8 +6,7 @@ balance of downward protection (15% to 30%) and expected return (premium + divid
 
 I discuss the strategy in more detail [here](https://www.oliver.dev/posts/2025/05/options-screener-part-i.html)
 
-Positions are loaded into
-[this](https://docs.google.com/spreadsheets/d/1dhLDNkZbI2-7Fm4jXRreL-S6oTRExumvJRH1fEQIiOs/edit?usp=sharing) Google Sheet and are updated every 30 minutes during market hours (9:30AM-4:00PM ET, Monday-Friday).
+Positions are loaded into a personal Google Sheet and are updated every 30 minutes during market hours (9:30AM-4:00PM ET, Monday-Friday).
 
 # Data Sources & Calculation
 

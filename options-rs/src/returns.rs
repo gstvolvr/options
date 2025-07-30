@@ -29,7 +29,7 @@ pub struct Returns {
 impl Returns {
     pub fn to_firestore_document(&self, project_id: &str) -> Value {
         let doc_id = format!("{}_{}_{}",
-            self.symbol, self.expiration_date, self.strike_price
+                             self.symbol, self.expiration_date, self.strike_price
         );
         let serialized = serde_json::to_value(self).unwrap();
         let mut fields = Map::new();
