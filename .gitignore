@@ -16,6 +16,8 @@ conf/env.sh
 *pickle*
 *.csv
 .idea
+notebooks
+.claude
 .env
 *.pem
 *.crt

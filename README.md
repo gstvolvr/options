@@ -7,39 +7,40 @@ balance of downward protection (15% to 30%) and expected return (premium + divid
 I discuss the strategy in more detail [here](https://www.oliver.dev/posts/2025/05/options-screener-part-i.html)
 
 Positions are loaded into
-[this](https://docs.google.com/spreadsheets/d/1dhLDNkZbI2-7Fm4jXRreL-S6oTRExumvJRH1fEQIiOs/edit?usp=sharing) Google Sheet and are updated every 15 minutes on trading days.
+[this](https://docs.google.com/spreadsheets/d/1dhLDNkZbI2-7Fm4jXRreL-S6oTRExumvJRH1fEQIiOs/edit?usp=sharing) Google Sheet and are updated every 30 minutes during market hours (9:30AM-4:00PM ET, Monday-Friday).
 
-# Data
-I pull data from the Schwab API and track the following attributes:
-* name	
-* industry	
-* stock price
-* net price of position 
-* call strike price
-* call expiration date
-* insurance	
-* premium	
-* dividend	
-* ex dividend date	
-* expected return after 1 dividend
-* expected return after 2 dividends	
-* expected return after 3 dividends	
-* expected return after 4 dividends	
-* latest bid	
-* latest mid point	
-* latest ask
+# Data Sources & Calculation
 
-# Running with Docker
+The system pulls real-time data from the **Schwab API** and calculates the following metrics for each deep in-the-money covered call position:
+
+**Stock Information:**
+* Company name and industry sector
+* Current stock price and market data
+
+**Options Information:**
+* Call strike price and expiration date
+* Latest bid, mid-point, and ask prices
+* Net position cost (stock price - option premium)
+
+**Strategy Metrics:**
+* **Insurance**: Downside protection percentage
+* **Premium**: Income from selling the call option
+* **Expected Returns**: Projected returns after capturing 1-4 dividend payments
+* Dividend amount and ex-dividend dates
+
+All data is processed using a Rust-based calculation engine for performance and deployed to Google Cloud Run for automated execution.
+
+## Running with Docker
 
 This project can be run in a Docker container using the provided Dockerfile and docker-compose.yml.
 
-## Prerequisites
+### Prerequisites
 
 - Docker and Docker Compose installed on your system
 - A `.env` file with the necessary environment variables (see below)
 - Google API credentials (secrets-manager-key.json)
 
-## Environment Variables
+### Environment Variables
 
 Create a `.env` file in the project root with the following variables:
 
@@ -73,20 +74,4 @@ docker-compose logs -f
 
 ```bash
 docker-compose down
-```
-
-## Running the Container Directly
-
-If you prefer to run the Docker container directly without Docker Compose:
-
-```bash
-# Build the image
-docker build -t options-screener .
-
-# Run the container
-docker run --rm \
-  -v $(pwd)/.env:/app/.env:ro \
-  -v $(pwd)/secrets-manager-key.json:/app/secrets-manager-key.json:ro \
-  -v $(pwd)/data:/app/data \
-  options-screener
 ```

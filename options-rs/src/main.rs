@@ -1,5 +1,4 @@
 use csv::WriterBuilder;
-use chrono::NaiveDate;
 use options_rs::test_utils;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -26,7 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = write_api_data_for_all_tickers(oauth_client).await {
         eprintln!("Error processing symbols file: {}", e);
     }
-    calculate_returns().await.expect("Failed to calculate returns");
+    if let Err(e) = calculate_returns().await {
+        eprintln!("Error calculating returns: {}", e);
+        std::process::exit(1);
+    }
 
     Ok(())
 }
@@ -197,10 +199,34 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
                         continue;
                     }
 
-                    let mid = contract.mid().unwrap();
-                    let cost_basis = contract.buy_write_cost_basis(quote.quote.last_price).unwrap();
-                    let insurance = contract.buy_write_insurance(quote.quote.last_price).unwrap();
-                    let premium = contract.buy_write_premium(quote.quote.last_price).unwrap();
+                    let mid = match contract.mid() {
+                        Some(m) => m,
+                        None => {
+                            eprintln!("Unable to calculate mid price for {}", quote.symbol);
+                            continue;
+                        }
+                    };
+                    let cost_basis = match contract.buy_write_cost_basis(quote.quote.last_price) {
+                        Some(cb) => cb,
+                        None => {
+                            eprintln!("Unable to calculate cost basis for {}", quote.symbol);
+                            continue;
+                        }
+                    };
+                    let insurance = match contract.buy_write_insurance(quote.quote.last_price) {
+                        Some(ins) => ins,
+                        None => {
+                            eprintln!("Unable to calculate insurance for {}", quote.symbol);
+                            continue;
+                        }
+                    };
+                    let premium = match contract.buy_write_premium(quote.quote.last_price) {
+                        Some(prem) => prem,
+                        None => {
+                            eprintln!("Unable to calculate premium for {}", quote.symbol);
+                            continue;
+                        }
+                    };
                     let returns = &(1..=5)
                             .map(|n| contract.calculate_return_after_dividend(
                                 quote.quote.last_price,
@@ -310,28 +336,32 @@ async fn write_api_data_for_all_tickers(oauth_client: OAuthClient) -> Result<(),
 }
 
 fn create_api_data_files() -> () {
-    OpenOptions::new()
+    if let Err(e) = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&*QUOTES_DATA_PATH)
-        .expect("Failed to open quotes file");
+        .open(&*QUOTES_DATA_PATH) {
+        eprintln!("Failed to create quotes file: {}", e);
+        return;
+    }
 
-    OpenOptions::new()
+    if let Err(e) = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&*CHAINS_DATA_PATH)
-        .expect("Failed to open quotes file");
+        .open(&*CHAINS_DATA_PATH) {
+        eprintln!("Failed to create chains file: {}", e);
+    }
 }
 
 fn create_returns_data_files() -> () {
-    OpenOptions::new()
+    if let Err(e) = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&*RETURNS_JSON_DATA_PATH)
-        .expect("Failed to open returns file");
+        .open(&*RETURNS_JSON_DATA_PATH) {
+        eprintln!("Failed to create returns file: {}", e);
+    }
 }
 
 use std::io::Write;
@@ -340,33 +370,167 @@ use serde::{Serialize, Deserialize};
 use options_rs::utils::parse_date;
 
 fn append_returns_data(returns: Value) -> () {
-    let mut file = OpenOptions::new()
+    let mut file = match OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&*RETURNS_JSON_DATA_PATH)
-        .expect("Failed to open returns file");
-    file.write_all(format!("{}\n", serde_json::to_string(&returns).expect("Failed to serialize returns")).as_bytes())
-        .expect("Failed to write returns");
+        .open(&*RETURNS_JSON_DATA_PATH) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Failed to open returns file: {}", e);
+            return;
+        }
+    };
+    let serialized = match serde_json::to_string(&returns) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to serialize returns: {}", e);
+            return;
+        }
+    };
+    if let Err(e) = file.write_all(format!("{}\n", serialized).as_bytes()) {
+        eprintln!("Failed to write returns: {}", e);
+    }
 }
 
 fn append_api_data(quotes: QuoteApiResponse, chains: ChainsApiResponse) -> () {
-    let mut quotes_file = OpenOptions::new()
+    let mut quotes_file = match OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&*QUOTES_DATA_PATH)
-        .expect("Failed to open quotes file");
+        .open(&*QUOTES_DATA_PATH) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Failed to open quotes file: {}", e);
+            return;
+        }
+    };
 
-    let mut chains_file = OpenOptions::new()
+    let mut chains_file = match OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&*CHAINS_DATA_PATH)
-        .expect("Failed to open chains file");
+        .open(&*CHAINS_DATA_PATH) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Failed to open chains file: {}", e);
+            return;
+        }
+    };
 
-    quotes_file
-        .write_all(format!("{},\n", serde_json::to_string(&quotes).expect("Failed to serialize quotes")).as_bytes())
-        .expect("Failed to write quotes");
+    let quotes_serialized = match serde_json::to_string(&quotes) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to serialize quotes: {}", e);
+            return;
+        }
+    };
 
-    chains_file
-        .write_all(format!("{},\n", serde_json::to_string(&chains).expect("Failed to serialize chains")).as_bytes())
-        .expect("Failed to write chains");
+    let chains_serialized = match serde_json::to_string(&chains) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to serialize chains: {}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = quotes_file.write_all(format!("{},\n", quotes_serialized).as_bytes()) {
+        eprintln!("Failed to write quotes: {}", e);
+    }
+
+    if let Err(e) = chains_file.write_all(format!("{},\n", chains_serialized).as_bytes()) {
+        eprintln!("Failed to write chains: {}", e);
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_returns_to_csv_record() {
+        let returns = Returns {
+            symbol: "AAPL".to_string(),
+            company_name: "Apple Inc.".to_string(),
+            industry: "Technology".to_string(),
+            last: 150.0,
+            net: 140.0,
+            strike_price: "160".to_string(),
+            expiration_date: "2025-12-19".to_string(),
+            insurance: 0.15,
+            premium: 10.0,
+            dividend_quarterly_amount: 0.25,
+            dividend_ex_date: "2025-02-15".to_string(),
+            return_after_1_div: 0.05,
+            return_after_2_div: 0.10,
+            return_after_3_div: 0.15,
+            return_after_4_div: 0.20,
+            return_after_5_div: 0.25,
+            return_after_last_div: 0.20,
+            bid: 9.5,
+            mid: 10.0,
+            ask: 10.5,
+            previous_date: "2025-01-29".to_string(),
+        };
+
+        let csv_record = returns.to_csv_record();
+        assert_eq!(csv_record[0], "AAPL");
+        assert_eq!(csv_record[1], "Apple Inc.");
+        assert_eq!(csv_record[3], "150");
+        assert_eq!(csv_record.len(), 21);
+    }
+
+    #[test]
+    fn test_returns_to_firestore_document() {
+        let returns = Returns {
+            symbol: "AAPL".to_string(),
+            company_name: "Apple Inc.".to_string(),
+            industry: "Technology".to_string(),
+            last: 150.0,
+            net: 140.0,
+            strike_price: "160".to_string(),
+            expiration_date: "2025-12-19".to_string(),
+            insurance: 0.15,
+            premium: 10.0,
+            dividend_quarterly_amount: 0.25,
+            dividend_ex_date: "2025-02-15".to_string(),
+            return_after_1_div: 0.05,
+            return_after_2_div: 0.10,
+            return_after_3_div: 0.15,
+            return_after_4_div: 0.20,
+            return_after_5_div: 0.25,
+            return_after_last_div: 0.20,
+            bid: 9.5,
+            mid: 10.0,
+            ask: 10.5,
+            previous_date: "2025-01-29".to_string(),
+        };
+
+        let doc = returns.to_firestore_document("test-project");
+        assert!(doc["name"].as_str().unwrap().contains("AAPL_2025-12-19_160"));
+        assert_eq!(doc["fields"]["symbol"]["stringValue"], "AAPL");
+        assert_eq!(doc["fields"]["last"]["doubleValue"], 150.0);
+    }
+
+    #[test]
+    fn test_read_json_lines_empty_file() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let result: Result<Vec<serde_json::Value>, _> = read_json_lines(temp_file.path().to_str().unwrap());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_read_json_lines_valid_data() {
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), "{\"test\": \"value1\"}
+{\"test\": \"value2\"}").unwrap();
+        
+        let result: Result<Vec<serde_json::Value>, _> = read_json_lines(temp_file.path().to_str().unwrap());
+        assert!(result.is_ok());
+        let data = result.unwrap();
+        assert_eq!(data.len(), 2);
+        assert_eq!(data[0]["test"], "value1");
+        assert_eq!(data[1]["test"], "value2");
+    }
 }
