@@ -1,0 +1,59 @@
+# Ignore sensitive files
+*.json
+!options-rs/src/api/test_data/*.json
+
+# Ignore local development files
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignore data files (these should be mounted as volumes)
+# data/
+# *.csv
+# *.pickle
+
+# For Cloud Run, we include data files in the image
+# Exclude large generated files but keep essential data
+data/schwab_chains.jsonl
+data/schwab_quotes.jsonl
+data/schwab_returns.csv
+data/schwab_returns.jsonl
+data/*.pickle
+
+# Ignore notebooks and temporary files
+*.ipynb
+tmp.*
+Untitled.*
+wget-log
+
+# Ignore certificates
+*.pem
+*.crt
+*.key
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore documentation
+README.md
