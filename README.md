@@ -29,6 +29,16 @@ The system pulls real-time data from the **Schwab API** and calculates the follo
 
 All data is processed using a Rust-based calculation engine for performance and deployed to Google Cloud Run for automated execution.
 
+## Cloud Infrastructure
+
+This project uses several Google Cloud services:
+- **Cloud Run Jobs**: Serverless execution during market hours only
+- **Cloud Scheduler**: Automated triggering every 30 minutes (9:30AM-4:00PM ET)
+- **Artifact Registry**: Private Docker image storage
+- **Secret Manager**: Secure API credential storage
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed setup instructions.
+
 ## Running with Docker
 
 This project can be run in a Docker container using the provided Dockerfile and docker-compose.yml.
