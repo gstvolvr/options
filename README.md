@@ -8,7 +8,7 @@ I discuss the strategy in more detail [here](https://www.oliver.dev/posts/2025/0
 
 Positions are loaded into a personal Google Sheet and are updated every 30 minutes during market hours (9:30AM-4:00PM ET, Monday-Friday).
 
-# Data Sources & Calculation
+## Data Sources & Calculation
 
 The system pulls real-time data from the **Schwab API** and calculates the following metrics for each deep in-the-money covered call position:
 
@@ -74,3 +74,7 @@ docker-compose logs -f
 ```bash
 docker-compose down
 ```
+
+## Development Notes
+
+Some infrastructure and deployment scripts in this project were generated with AI assistance from Claude. These files are marked with appropriate headers. The core trading logic and calculations remain human-authored.

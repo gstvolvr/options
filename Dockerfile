@@ -1,3 +1,4 @@
+# This Dockerfile was generated with AI assistance from Claude
 FROM rust:latest as builder
 
 WORKDIR /app

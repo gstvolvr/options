@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# This script was generated with AI assistance from Claude
 # Google Cloud Deployment Script for Options Processor
 # This script sets up Cloud Run Job + Cloud Scheduler for market hours processing
 

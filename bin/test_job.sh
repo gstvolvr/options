@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# This script was generated with AI assistance from Claude
 # Test script to manually trigger the options processor job
 # Usage: ./test_job.sh
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Script to update the Docker image for an existing deployment
+# This script was generated with AI assistance from Claude
+# Script to update the Docker image for an existing deployment in the Google Artifact Registry
 # Usage: ./update_image.sh
 
 set -e

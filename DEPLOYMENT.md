@@ -1,5 +1,7 @@
 # Google Cloud Deployment Guide
 
+<!-- This guide was generated with AI assistance from Claude -->
+
 This guide covers deploying the Options Processor as a Cloud Run Job with Cloud Scheduler for automated market hours execution.
 
 ## Prerequisites
