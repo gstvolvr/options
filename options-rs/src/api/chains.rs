@@ -478,7 +478,7 @@ impl OptionContract {
 
     /// Calculate the annualized return of a buy write trade after capturing a certain number of dividend payments
     /// TODO: add captured dividend amount and captured dividend dates to the logs
-    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental, n_dividends: i64, from_date: Option<NaiveDate>) -> f64 {
+    pub fn calculate_return_after_dividend(&self, underlying_equity_price: f64, fundamental: Fundamental, n_dividends: i64, from_date: Option<NaiveDate>) -> Option<f64> {
         use chrono::{NaiveDate, Duration, DateTime};
         use chrono::Datelike; // Import the Datelike trait for date methods
 
@@ -486,14 +486,33 @@ impl OptionContract {
 
         // Parse the dividend ex-date
         // The date format is expected to be like "2025-05-12T00:00:00Z"
-        let div_ex_date = parse_date(fundamental.div_ex_date.as_str()).unwrap();
+        // If div_ex_date is None, we can't calculate the return, so return 0.0
+        let div_ex_date = match &fundamental.div_ex_date {
+            Some(date_str) => match parse_date(date_str) {
+                Ok(date) => date,
+                Err(e) => {
+                    log::warn!("Failed to parse div_ex_date: {} - {}", date_str, e);
+                    return None;
+                }
+            },
+            None => {
+                log::warn!("Missing div_ex_date for {}", self.symbol);
+                return None;
+            }
+        };
 
         // Calculate months to add based on dividend frequency
         // Quarterly: 12 / 4
         // Bi-annual: 12 / 2
         // Annual: 12
-        let months_between_dividends = 12 / fundamental.div_freq;
-        let captured_div = (fundamental.div_amount / fundamental.div_freq as f64) * n_dividends as f64;
+        let (months_between_dividends, captured_div) = if fundamental.div_freq == 0 {
+            log::info!("No dividends for symbol {} (div_freq = 0)", self.symbol);
+            (12, 0.0) // Default to 12 months, 0 dividend
+        } else {
+            let months_between_dividends = 12 / fundamental.div_freq;
+            let captured_div = (fundamental.div_amount / fundamental.div_freq as f64) * n_dividends as f64;
+            (months_between_dividends, captured_div)
+        };
 
         let mut months_until_next_call_event;
         let mut next_event_date;
@@ -507,17 +526,37 @@ impl OptionContract {
             next_div_ex_date = div_ex_date;
             months_until_next_call_event = months_between_dividends * n_dividends;
             // months_until_next_call_event = months_between_dividends * n_dividends;
-            next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32)).unwrap();
-            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture as u32)).unwrap();
+            next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32))
+                .unwrap_or_else(|| {
+                    log::warn!("Date overflow calculating next_event_date for months: {}", months_until_next_call_event);
+                    div_ex_date
+                });
+            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture as u32))
+                .unwrap_or_else(|| {
+                    log::warn!("Date overflow calculating final_div_ex_date for months: {}", months_until_last_dividend_capture);
+                    div_ex_date
+                });
         } else {
             // even though we acquire the dividend at the ex date, it's not until the following "event" that the position could be called
             let months_until_next_dividend_capture = months_between_dividends * n_dividends;
             let months_until_last_dividend_capture = months_between_dividends * (n_dividends - 1);
             months_until_next_call_event = months_between_dividends * (n_dividends + 1);
 
-            next_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_next_dividend_capture as u32)).unwrap();
-            next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32)).unwrap();
-            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture as u32)).unwrap();
+            next_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_next_dividend_capture.max(0) as u32))
+                .unwrap_or_else(|| {
+                    log::warn!("Date overflow calculating next_div_ex_date for months: {}", months_until_next_dividend_capture);
+                    div_ex_date
+                });
+            next_event_date = div_ex_date.checked_add_months(Months::new(months_until_next_call_event as u32))
+                .unwrap_or_else(|| {
+                    log::warn!("Date overflow calculating next_event_date for months: {}", months_until_next_call_event);
+                    div_ex_date
+                });
+            final_div_ex_date = div_ex_date.checked_add_months(Months::new(months_until_last_dividend_capture.max(0) as u32))
+                .unwrap_or_else(|| {
+                    log::warn!("Date overflow calculating final_div_ex_date for months: {}", months_until_last_dividend_capture);
+                    div_ex_date
+                });
             // You can't capture a dividend or get options called during the weekend
             next_div_ex_date = get_previous_weekday(next_div_ex_date);
         }
@@ -535,18 +574,21 @@ impl OptionContract {
         let days_to_next_ex_dividend = (next_div_ex_date - today).num_days();
         let days_to_final_ex_dividend = (final_div_ex_date - today).num_days();
 
-        // Check conditions from
-        if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 {
-            return 0.0;
+        // Don't count dividends that occur after options expiration or are too far out
+        if days_to_next_event <= 0 || (next_event_date - expiration_date).num_days() >= months_between_dividends * 30 || 
+           next_event_date > expiration_date || next_div_ex_date > expiration_date || final_div_ex_date > expiration_date {
+            log::debug!("Skipping {} - invalid timing: days_to_next_event={}, next_div_ex_date={}, final_div_ex_date={}, expiration={}", 
+                       self.symbol, days_to_next_event, next_div_ex_date, final_div_ex_date, expiration_date);
+            return None;
         }
 
         let premium = match self.buy_write_premium(underlying_equity_price) {
             Some(premium) => premium,
-            None => return 0.0,
+            None => return None,
         };
         let net = match self.buy_write_cost_basis(underlying_equity_price) {
             Some(cost_basis) => cost_basis,
-            None => return 0.0, // Return 0.0 if we can't calculate the net
+            None => return None, // Return None if we can't calculate the net
         };
 
         let return_after_dividend = ((((fundamental.div_pay_amount * (n_dividends as f64)) + premium) / net) / days_to_next_event as f64) * 365.0;
@@ -567,7 +609,7 @@ impl OptionContract {
         debug!("{:<25} ${:.2}", "Buy write premium:", premium);
         debug!("{:<25} ${:.2}", "Buy write cost basis:", net);
         debug!("{:<25} {:.2}%", format!("Return after {} dividend:", n_dividends), return_after_dividend*100.0);
-        return_after_dividend
+        Some(return_after_dividend)
     }
 }
 

@@ -93,7 +93,7 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
     wtr.write_record(&[
         "symbol", "company_name", "industry", "last", "net", "strike_price",
         "expiration_date", "insurance", "premium", "dividend_quarterly_amount", "dividend_ex_date",
-        "return_after_1_div", "return_after_2_div", "return_after_3_div", "return_after_4_div", "return_after_5_div",
+        "return_after_0_div", "return_after_1_div", "return_after_2_div", "return_after_3_div", "return_after_4_div", "return_after_5_div",
         "return_after_last_div", "bid", "mid", "ask", "previous_date"
     ])?;
 
@@ -137,19 +137,19 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
                             continue;
                         }
                     };
-                    let returns = &(1..=5)
+                    let returns = &(0..=5)
                             .map(|n| contract.calculate_return_after_dividend(
                                 quote.quote.last_price,
                                 quote.fundamental.clone(),
                                 n,
                                 None,
                             ))
-                            .collect::<Vec<f64>>();
+                            .collect::<Vec<Option<f64>>>();
 
                     let last_return = returns.iter()
                         .rev()
-                        .find(|s| **s != 0.0)
-                        .unwrap_or(&0.0);
+                        .find(|opt| opt.is_some() && opt.unwrap() != 0.0)
+                        .and_then(|opt| *opt);
 
                     // Look up company_name and industry from companies HashMap
                     let (company_name, industry) = companies.get(&quote.symbol)
@@ -167,13 +167,16 @@ async fn calculate_returns() -> Result<(), Box<dyn std::error::Error + Send + Sy
                         insurance: insurance,
                         premium: premium,
                         dividend_quarterly_amount: quote.fundamental.div_amount,
-                        dividend_ex_date: parse_date(&quote.fundamental.div_ex_date).map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|_| quote.fundamental.div_ex_date.clone()),
-                        return_after_1_div: returns[0],
-                        return_after_2_div: returns[1],
-                        return_after_3_div: returns[2],
-                        return_after_4_div: returns[3],
-                        return_after_5_div: returns[4],
-                        return_after_last_div: *last_return,
+                        dividend_ex_date: quote.fundamental.div_ex_date.as_ref()
+                            .map(|date_str| parse_date(date_str).map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|_| date_str.clone()))
+                            .unwrap_or_else(|| "N/A".to_string()),
+                        return_after_0_div: returns[0],
+                        return_after_1_div: returns[1],
+                        return_after_2_div: returns[2],
+                        return_after_3_div: returns[3],
+                        return_after_4_div: returns[4],
+                        return_after_5_div: returns[5],
+                        return_after_last_div: last_return,
                         bid: contract.bid_price.unwrap_or_default(),
                         mid: mid,
                         ask: contract.ask_price.unwrap_or_default(),
@@ -435,7 +438,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         fs::write(temp_file.path(), "{\"test\": \"value1\"}
 {\"test\": \"value2\"}").unwrap();
-        
+
         let result: Result<Vec<serde_json::Value>, _> = read_json_lines(temp_file.path().to_str().unwrap());
         assert!(result.is_ok());
         let data = result.unwrap();
