@@ -29,8 +29,8 @@ wheels/
 
 # Ignore data files (these should be mounted as volumes)
 # data/
-# *.csv
-# *.pickle
+*.csv
+*.pickle
 
 # For Cloud Run, we include data files in the image
 # Exclude large generated files but keep essential data
@@ -55,5 +55,20 @@ wget-log
 .git
 .gitignore
 
+# Ignore Rust build artifacts
+target/
+options-rs/target/
+Cargo.lock
+
 # Ignore documentation
 README.md
+*.md
+
+# Ignore development artifacts
+.DS_Store
+.vscode/
+.idea/
+
+# Ignore large data directories that should be mounted as volumes
+data/large_datasets/
+data/backups/
